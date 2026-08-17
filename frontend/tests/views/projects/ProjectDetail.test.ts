@@ -192,6 +192,30 @@ describe('ProjectDetail.vue', () => {
     expect(vm.project).toBeNull()
   })
 
+  it('进行中项目应显示一键关联', async () => {
+    const wrapper = mountWithPlugins(ProjectDetail)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('一键关联')
+  })
+
+  it('已取消项目不应显示一键关联', async () => {
+    vi.mocked(projectApi.getProjectById).mockResolvedValue(
+      mockAxiosResponse({
+        data: {
+          ...mockProject,
+          status: 'Cancelled'
+        }
+      })
+    )
+
+    const wrapper = mountWithPlugins(ProjectDetail)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('已取消')
+    expect(wrapper.text()).not.toContain('一键关联')
+  })
+
   it('应该包含返回按钮', async () => {
     const wrapper = mountWithPlugins(ProjectDetail)
     await flushPromises()

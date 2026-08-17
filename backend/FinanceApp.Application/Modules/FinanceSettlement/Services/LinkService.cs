@@ -339,6 +339,7 @@ public class LinkService : ServiceBase, ILinkService
     {
         var project = await _projectRepository.GetByIdAsync(projectId)
             ?? throw new NotFoundException($"项目不存在: {projectId}");
+        EnsureProjectMutable(project);
 
         var matchTerms = new List<string> { project.Name };
         if (!string.IsNullOrWhiteSpace(project.ProjectCode))
@@ -471,6 +472,7 @@ public class LinkService : ServiceBase, ILinkService
     {
         var project = await _projectRepository.GetByIdAsync(projectId)
             ?? throw new NotFoundException($"项目不存在: {projectId}");
+        EnsureProjectMutable(project);
 
         // 服务端重新校验：只允许未关联项目且未分摊的交易
         var validIds = await _transactionRepository.GetQueryable()
@@ -525,7 +527,7 @@ public class LinkService : ServiceBase, ILinkService
         var persons = await _personRepository.GetQueryable()
             .Where(p => p.IsActive).ToListAsync();
         var projects = await _projectRepository.GetQueryable()
-            .Where(p => !p.IsDeleted).ToListAsync();
+            .Where(p => !p.IsDeleted && p.Status != ProjectStatus.Cancelled).ToListAsync();
         var accounts = await _accountRepository.GetQueryable()
             .Where(a => a.IsActive).ToListAsync();
 
@@ -686,6 +688,15 @@ public class LinkService : ServiceBase, ILinkService
         if (request.Items.Count == 0)
             return new BatchLinkConfirmResponse { LinkedCount = 0, Message = "未选择任何关联项" };
 
+        var cancelledProjectIds = await GetCancelledProjectIdsAsync(
+            request.Items
+                .Where(i => i.EntityType == BatchLinkEntityType.Project)
+                .Select(i => i.EntityId));
+        if (cancelledProjectIds.Count > 0)
+        {
+            throw new ValidationException("已取消的项目不允许关联交易");
+        }
+
         var transactionIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
         var transactions = await _transactionRepository.GetQueryable()
             .Where(t => transactionIds.Contains(t.Id))
@@ -839,6 +850,28 @@ public class LinkService : ServiceBase, ILinkService
         }
 
         return count;
+    }
+
+    private static void EnsureProjectMutable(Project project)
+    {
+        if (project.Status == ProjectStatus.Cancelled)
+        {
+            throw new ValidationException("已取消的项目不允许关联交易");
+        }
+    }
+
+    private async Task<List<long>> GetCancelledProjectIdsAsync(IEnumerable<long> projectIds)
+    {
+        var ids = projectIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return new List<long>();
+        }
+
+        return await _projectRepository.GetQueryable()
+            .Where(p => ids.Contains(p.Id) && p.Status == ProjectStatus.Cancelled)
+            .Select(p => p.Id)
+            .ToListAsync();
     }
 
     private static LinkCandidateDto MapToCandidate(Transaction tx, string matchReason)

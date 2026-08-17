@@ -1,6 +1,7 @@
 using FluentAssertions;
 using FinanceApp.Application.Common;
 using FinanceApp.Application.Modules.Identity.Interfaces;
+using FinanceApp.Application.Modules.MasterData.DTOs.Tag;
 using FinanceApp.Application.Modules.MasterData.Services;
 using FinanceApp.Application.Tests.Helpers;
 using FinanceApp.Domain.Entities;
@@ -168,5 +169,50 @@ public class TagServiceTests : TestBase
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task SetBindingsAsync_WithCancelledProject_ShouldThrowValidationException()
+    {
+        var project = new Project { Id = 10, Name = "已取消项目", Status = ProjectStatus.Cancelled };
+        _projectRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Project> { project }.AsQueryable().BuildMock().Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => _service.SetBindingsAsync(new SetBindingsRequest
+        {
+            OwnerType = "project",
+            OwnerId = 10,
+            TagIds = new List<long> { 1 }
+        }));
+
+        exception.Message.Should().Contain("已取消的项目不允许调整标签");
+        _tagBindingRepositoryMock.Verify(r => r.AddAsync(It.IsAny<TagBinding>()), Times.Never);
+        _tagBindingRepositoryMock.Verify(r => r.Delete(It.IsAny<TagBinding>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddBindingAsync_WithCancelledProject_ShouldThrowValidationException()
+    {
+        var project = new Project { Id = 10, Name = "已取消项目", Status = ProjectStatus.Cancelled };
+        _projectRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Project> { project }.AsQueryable().BuildMock().Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            () => _service.AddBindingAsync("project", 10, 1));
+
+        exception.Message.Should().Contain("已取消的项目不允许调整标签");
+    }
+
+    [Fact]
+    public async Task RemoveBindingAsync_WithCancelledProject_ShouldThrowValidationException()
+    {
+        var project = new Project { Id = 10, Name = "已取消项目", Status = ProjectStatus.Cancelled };
+        _projectRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Project> { project }.AsQueryable().BuildMock().Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            () => _service.RemoveBindingAsync("project", 10, 1));
+
+        exception.Message.Should().Contain("已取消的项目不允许调整标签");
     }
 }

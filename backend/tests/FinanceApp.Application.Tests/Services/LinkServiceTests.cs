@@ -39,6 +39,8 @@ public class LinkServiceTests : TestBase
 
         UnitOfWorkMock.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((ITransactionScope?)null);
+        _projectRepoMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Project>().AsQueryable().BuildMock().Object);
 
         _service = new LinkService(
             _transactionRepoMock.Object,
@@ -371,6 +373,21 @@ public class LinkServiceTests : TestBase
         result.TotalMatched.Should().Be(0);
     }
 
+    [Fact]
+    public async Task PreviewLink_CancelledProject_ShouldThrowValidationException()
+    {
+        var project = new Project { Id = 1, Name = "已取消项目", Status = ProjectStatus.Cancelled };
+        _projectRepoMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(project);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => _service.PreviewLinkAsync(new LinkPreviewRequest
+        {
+            LinkType = LinkType.Project,
+            EntityId = 1
+        }));
+
+        exception.Message.Should().Contain("已取消的项目不允许关联交易");
+    }
+
     #endregion
 
     #region ConfirmLink
@@ -490,6 +507,23 @@ public class LinkServiceTests : TestBase
         // Assert
         result.LinkedCount.Should().Be(1);
         transactions[0].ProjectId.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task ConfirmLink_CancelledProject_ShouldThrowValidationException()
+    {
+        var project = new Project { Id = 4, Name = "已取消项目", Status = ProjectStatus.Cancelled };
+        _projectRepoMock.Setup(r => r.GetByIdAsync(4)).ReturnsAsync(project);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => _service.ConfirmLinkAsync(new LinkConfirmRequest
+        {
+            LinkType = LinkType.Project,
+            EntityId = 4,
+            TransactionIds = new List<long> { 400 }
+        }));
+
+        exception.Message.Should().Contain("已取消的项目不允许关联交易");
+        _transactionRepoMock.Verify(r => r.Update(It.IsAny<Transaction>()), Times.Never);
     }
 
     [Fact]
@@ -1173,6 +1207,25 @@ public class LinkServiceTests : TestBase
         // Assert
         result.LinkedCount.Should().Be(1);
         transactions[0].ProjectId.Should().Be(8);
+    }
+
+    [Fact]
+    public async Task ConfirmBatchLink_CancelledProject_ShouldThrowValidationException()
+    {
+        var cancelled = new Project { Id = 8, Name = "已取消项目", Status = ProjectStatus.Cancelled };
+        _projectRepoMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Project> { cancelled }.AsQueryable().BuildMock().Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => _service.ConfirmBatchLinkAsync(new BatchLinkConfirmRequest
+        {
+            Items = new List<BatchLinkConfirmItem>
+            {
+                new() { TransactionId = 400, EntityType = BatchLinkEntityType.Project, EntityId = 8 }
+            }
+        }));
+
+        exception.Message.Should().Contain("已取消的项目不允许关联交易");
+        _transactionRepoMock.Verify(r => r.Update(It.IsAny<Transaction>()), Times.Never);
     }
 
     [Fact]

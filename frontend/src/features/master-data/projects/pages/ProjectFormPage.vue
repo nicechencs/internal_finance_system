@@ -69,6 +69,7 @@ import type { Customer } from '@/features/master-data/customers/types/customer'
 import SearchableInput from '@/shared/ui/SearchableInput.vue'
 import { toDateOnlyString } from '@/shared/utils/date'
 import { ApiError } from '@/shared/types/error'
+import { canMutateProject } from '@/features/master-data/projects/utils/projectStatus'
 
 interface Props {
   visible: boolean
@@ -181,6 +182,10 @@ const handleSubmit = async () => {
         description: form.description || undefined
       }
       if (isEdit.value) {
+        if (!canMutateProject(props.project?.status)) {
+          ElMessage.warning('已取消的项目不允许编辑')
+          return
+        }
         await updateProject(props.project!.id, data)
         ElMessage.success('更新成功')
         emit('success')

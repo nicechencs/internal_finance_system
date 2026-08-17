@@ -7,7 +7,7 @@
         </el-button>
         <h2 class="page-title">项目详情</h2>
       </div>
-      <el-button type="warning" @click="linkDialogVisible = true" v-if="project">
+      <el-button type="warning" @click="linkDialogVisible = true" v-if="project && canMutateProject(project.status)">
         <el-icon><Link /></el-icon> 一键关联
       </el-button>
     </div>
@@ -317,6 +317,7 @@ import LinkDialog from '@/features/transactions/components/LinkDialog.vue'
 import DetailSummaryCards, { type DetailSummaryCardItem } from '@/shared/ui/DetailSummaryCards.vue'
 import SummaryOverview from '@/shared/ui/SummaryOverview.vue'
 import type { Project } from '@/features/master-data/projects/types/project'
+import { canMutateProject } from '@/features/master-data/projects/utils/projectStatus'
 import type { Transaction } from '@/features/transactions/types/transaction'
 import { LinkType } from '@/features/transactions/types/link'
 import { TABLE_COLUMN_WIDTH } from '@/shared/constants/table'

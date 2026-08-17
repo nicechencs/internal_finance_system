@@ -631,6 +631,45 @@ public class ProjectServiceTests : TestBase
     }
 
     [Fact]
+    public async Task UpdateAsync_WithCancelledProject_ShouldThrowValidationException()
+    {
+        var project = new Project
+        {
+            Id = 1,
+            Name = "已取消项目",
+            ProjectCode = "PRJ-2026-001",
+            Status = ProjectStatus.Cancelled,
+            IsDeleted = false
+        };
+        var request = new UpdateProjectRequest
+        {
+            Name = "尝试修改",
+            ProjectCode = "PRJ-2026-001",
+            Status = "Active"
+        };
+
+        _projectRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Project> { project }.AsQueryable().BuildMock().Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => _service.UpdateAsync(1, request));
+        exception.Message.Should().Contain("已取消的项目不允许编辑");
+        _projectRepositoryMock.Verify(r => r.Update(It.IsAny<Project>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithCancelledProject_ShouldThrowValidationException()
+    {
+        var project = new Project { Id = 1, Name = "已取消项目", Status = ProjectStatus.Cancelled };
+        _projectRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Project> { project }.AsQueryable().BuildMock().Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => _service.DeleteAsync(1));
+        exception.Message.Should().Contain("已取消的项目不允许删除");
+        _projectRepositoryMock.Verify(r => r.Update(It.IsAny<Project>()), Times.Never);
+        _projectRepositoryMock.Verify(r => r.Delete(It.IsAny<Project>()), Times.Never);
+    }
+
+    [Fact]
     public async Task DeleteAsync_WithReferencedProject_ShouldArchiveInsteadOfDelete()
     {
         var project = new Project { Id = 1, Name = "椤圭洰1", Status = ProjectStatus.Active };
@@ -643,6 +682,26 @@ public class ProjectServiceTests : TestBase
         _projectRepositoryMock.Verify(r => r.Update(project), Times.Once);
         _projectRepositoryMock.Verify(r => r.Delete(It.IsAny<Project>()), Times.Never);
         AuditLogServiceMock.Verify(a => a.LogAsync("Archive", "Project", 1, It.IsAny<string?>(), It.IsAny<string?>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task InitializeReceivablesAsync_WithCancelledProject_ShouldThrowValidationException()
+    {
+        var project = new Project
+        {
+            Id = 1,
+            Name = "已取消项目",
+            Status = ProjectStatus.Cancelled,
+            CustomerId = 10,
+            ContractAmount = 100000m
+        };
+        _projectRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(project);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            () => _service.InitializeReceivablesAsync(1, new InitializeReceivablesRequest { Mode = "once" }));
+
+        exception.Message.Should().Contain("已取消的项目不允许初始化应收");
+        _receivableServiceMock.Verify(s => s.CreateAsync(It.IsAny<CreateReceivableRequest>()), Times.Never);
     }
 
     [Fact]
