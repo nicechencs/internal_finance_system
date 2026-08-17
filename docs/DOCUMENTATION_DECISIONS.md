@@ -3,7 +3,7 @@
 状态：Active
 适用对象：开发 / 运维 / AI
 事实源级别：Primary
-最后核对日期：2026-08-16
+最后核对日期：2026-08-17
 
 ## 决策
 
@@ -107,3 +107,14 @@
 执行结果：
 - 归档文档中的 `InternalFinance` / `internal-finance` / `internal_finance` 已机械替换为现行公开标识；私人用户名、演示密码和真实样本在归档中本就没有残留。
 - `deploy-testing.yml` 改为仅 `workflow_dispatch`。
+
+### 11. 当前分支与发布事实
+
+原因：
+- 公开仓库默认分支已改为 `dev`，发布走 `release` + `v*` 标签，不再使用 `production` 分支或 Dokploy webhook。
+- 入口文档若继续写 `release-production.yml` / `DOKPLOY_WEBHOOK_URL`，会把运维指引引向已删除的工作流。
+
+执行结果：
+- 默认分支：`dev`；发布分支：`release`；版本：`v*` 标签。
+- 自动发布工作流：`.github/workflows/release.yml`，推送 `ghcr.io/<owner>/finance-api` 与 `ghcr.io/<owner>/finance-web`。
+- 上述事实写入根 `README.md`、开发入门和 `docs/05_Operations/` 主文档；`docs/90_Archive/` 保留历史表述不改。

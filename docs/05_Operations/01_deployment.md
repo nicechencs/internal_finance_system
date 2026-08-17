@@ -4,7 +4,7 @@
 适用对象：运维 / 开发
 事实源级别：Primary
 最后核对日期：2026-08-17
-代码依据：[`docker-compose.yml`](../../docker-compose.yml), [`scripts/deploy.sh`](../../scripts/deploy.sh)
+代码依据：[`docker-compose.yml`](../../docker-compose.yml), [`scripts/deploy.sh`](../../scripts/deploy.sh), [`.github/workflows/release.yml`](../../.github/workflows/release.yml)
 
 ## 关键风险
 
@@ -21,8 +21,18 @@
 ## 事实源
 
 - 运行编排：根目录 `docker-compose.yml`
+- 自动发布：`.github/workflows/release.yml`
 - 手动部署：`scripts/deploy.sh`
 - 日常运维：根目录 `scripts/*.sh`
+
+## 分支与发布
+
+- 默认分支：`dev`（日常开发）
+- 发布分支：`release`
+- 版本：`v*` 标签（例如 `v1.0.0`）
+- 推送 `v*` 标签，或在 GitHub Actions 中手动运行 `Release` 并填写版本
+- 工作流构建并推送 `ghcr.io/<owner>/finance-api:<version>` 与 `ghcr.io/<owner>/finance-web:<version>`（同时打 `latest`），并创建或更新对应 GitHub Release
+- 服务器用 Compose 拉取上述镜像，或用 `scripts/deploy.sh` 在目标机本地构建
 
 如需把容器挂到已有的反向代理网络，请使用未被提交的 `docker-compose.override.yml`，例如：
 
@@ -42,8 +52,6 @@ networks:
     external: true
     name: proxy_network
 ```
-
-Webhook 自动部署可指向你自己的编排平台，例如 `https://deploy.example.com/webhook/your-app`。
 
 ## 核心流程
 

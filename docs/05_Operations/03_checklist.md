@@ -7,13 +7,13 @@
 
 ## 部署前
 
-- 发布分支已准备
+- 发布内容已合入 `release`，并准备好 `v*` 版本标签
 - Docker / Docker Compose 可用
-- 环境变量已配置（`.env.production` 或编排平台）
+- 环境变量已配置（`.env.production`）
 - `BOOTSTRAP_ADMIN_PASSWORD` 不是演示占位符 `DemoOnly_ChangeMe!`
 - 外部数据库可连接
 - 磁盘空间充足
-- 若启用自动发布：GitHub Environment `production` 已配置 `DOKPLOY_WEBHOOK_URL`，且未同时开启原生 push Webhook
+- 若使用自动发布：已推送 `v*` 标签（或手动运行 GitHub Actions `Release`），并确认 GHCR 上已有 `finance-api` / `finance-web` 对应版本
 - **数据迁移前置检查**：若包含 `MakeSettlementTransactionIdRequired` 迁移，先执行以下查询确认无孤立数据：
   ```sql
   SELECT COUNT(*) FROM receivable_details WHERE transaction_id IS NULL AND deleted_at IS NULL;
@@ -38,5 +38,5 @@
 ## 收尾
 
 - 关闭 `BOOTSTRAP_ADMIN_ENABLED`
-- 记录当前镜像 tag（GitHub Release `prod-<short-sha>` 与 GHCR tag）
+- 记录当前镜像 tag（GitHub Release `v*` 与 GHCR `finance-api` / `finance-web`）
 - 确认回滚路径可用

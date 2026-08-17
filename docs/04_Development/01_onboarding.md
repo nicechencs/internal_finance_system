@@ -3,8 +3,14 @@
 状态：Active
 适用对象：开发 / AI
 事实源级别：Primary
-最后核对日期：2026-03-21
+最后核对日期：2026-08-17
 代码依据：[`scripts/Start-Dev.ps1`](../../scripts/Start-Dev.ps1), [`docker-compose.dev.yml`](../../docker-compose.dev.yml), [`frontend/package.json`](../../frontend/package.json)
+
+## 分支约定
+
+- 默认开发分支：`dev`
+- 发布分支：`release`
+- 版本发布使用 `v*` 标签，由 `.github/workflows/release.yml` 构建并推送 GHCR 镜像 `finance-api` / `finance-web`
 
 ## 快速开始
 

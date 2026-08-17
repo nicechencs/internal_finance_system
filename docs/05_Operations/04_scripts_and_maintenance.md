@@ -3,8 +3,8 @@
 状态：Active
 适用对象：运维 / 开发
 事实源级别：Primary
-最后核对日期：2026-08-16
-代码依据：[`scripts`](../../scripts), [`.github/workflows/release-production.yml`](../../.github/workflows/release-production.yml)
+最后核对日期：2026-08-17
+代码依据：[`scripts`](../../scripts), [`.github/workflows/release.yml`](../../.github/workflows/release.yml)
 
 ## 生产脚本
 
@@ -26,8 +26,9 @@
 
 ## 自动发布
 
-- 推送到 `production` 或手动运行 GitHub Actions `Release Production`
-- 本地资产校验：`scripts/simulate-deployment.sh`（会检查发布工作流文件是否存在）
+- 在 `release` 上打 `v*` 标签并推送，或手动运行 GitHub Actions `Release`
+- 工作流把 `ghcr.io/<owner>/finance-api` 与 `ghcr.io/<owner>/finance-web` 推到 GHCR（版本 tag 与 `latest`）
+- 本地资产校验：`scripts/simulate-deployment.sh`
 
 ## 日常维护动作
 
