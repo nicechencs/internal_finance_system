@@ -155,14 +155,10 @@ describe('ProjectList.vue', () => {
   })
 
   it('已取消项目不应显示标签、编辑和删除按钮', async () => {
-    const userStore = useUserStore()
-    userStore.setUser({ id: 1, username: 'admin', email: 'a@a.com', fullName: '管理员', role: 'Admin', isActive: true })
-
     vi.mocked(projectApi.getProjects).mockResolvedValue(
       mockAxiosResponse({
         data: {
           items: [
-            { ...mockProjects[0], status: 'Active' },
             {
               id: 3,
               projectCode: 'PRJ003',
@@ -170,36 +166,66 @@ describe('ProjectList.vue', () => {
               customerId: 1,
               customerName: '客户A',
               contractAmount: 10000,
+              receivedAmount: 0,
+              tags: [],
               status: 'Cancelled'
             }
           ],
-          total: 2
+          total: 1
         }
       })
     )
     vi.mocked(projectApi.getProjectStatistics).mockResolvedValue(
       mockAxiosResponse({
-        data: { totalCount: 2, totalContractAmount: 0, totalProfit: 0, totalReceivable: 0 }
+        data: { totalCount: 1, totalContractAmount: 0, totalProfit: 0, totalReceivable: 0 }
       })
     )
     vi.mocked(projectApi.getActiveProjects).mockResolvedValue(mockAxiosResponse({ data: [] }))
 
     const wrapper = mountWithPlugins(ProjectList)
+    const userStore = useUserStore()
+    userStore.setUser({ id: 1, username: 'admin', email: 'a@a.com', fullName: '管理员', role: 'Admin', isActive: true })
     await flushPromises()
 
-    const rows = wrapper.findAll('.el-table__body .el-table__row')
-    expect(rows.length).toBeGreaterThanOrEqual(2)
+    const buttonLabels = wrapper.findAll('button').map(btn => btn.text())
+    expect(wrapper.text()).toContain('已取消')
+    expect(buttonLabels).not.toContain('标签')
+    expect(buttonLabels).not.toContain('编辑')
+    expect(buttonLabels).not.toContain('删除')
+  })
 
-    const activeRowText = rows[0].text()
-    expect(activeRowText).toContain('标签')
-    expect(activeRowText).toContain('编辑')
-    expect(activeRowText).toContain('删除')
+  it('进行中项目仍显示标签、编辑和删除按钮', async () => {
+    vi.mocked(projectApi.getProjects).mockResolvedValue(
+      mockAxiosResponse({
+        data: {
+          items: [
+            {
+              ...mockProjects[0],
+              status: 'Active',
+              receivedAmount: 0,
+              tags: []
+            }
+          ],
+          total: 1
+        }
+      })
+    )
+    vi.mocked(projectApi.getProjectStatistics).mockResolvedValue(
+      mockAxiosResponse({
+        data: { totalCount: 1, totalContractAmount: 0, totalProfit: 0, totalReceivable: 0 }
+      })
+    )
+    vi.mocked(projectApi.getActiveProjects).mockResolvedValue(mockAxiosResponse({ data: [] }))
 
-    const cancelledRowText = rows[1].text()
-    expect(cancelledRowText).toContain('已取消')
-    expect(cancelledRowText).not.toContain('标签')
-    expect(cancelledRowText).not.toContain('编辑')
-    expect(cancelledRowText).not.toContain('删除')
+    const wrapper = mountWithPlugins(ProjectList)
+    const userStore = useUserStore()
+    userStore.setUser({ id: 1, username: 'admin', email: 'a@a.com', fullName: '管理员', role: 'Admin', isActive: true })
+    await flushPromises()
+
+    const buttonLabels = wrapper.findAll('button').map(btn => btn.text())
+    expect(buttonLabels).toContain('标签')
+    expect(buttonLabels).toContain('编辑')
+    expect(buttonLabels).toContain('删除')
   })
 
   it('已取消项目的写操作处理函数应直接返回', async () => {
