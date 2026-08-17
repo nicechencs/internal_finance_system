@@ -1,0 +1,17 @@
+# Dependencies (rebuilt in Docker)
+node_modules/
+
+# Test files
+tests/
+**/*.test.ts
+**/*.spec.ts
+vitest.config.ts
+coverage/
+
+# Version control
+.git/
+
+# IDE / editor
+.vscode/
+*.swp
+*.swo

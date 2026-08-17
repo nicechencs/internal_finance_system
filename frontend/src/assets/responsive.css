@@ -1,0 +1,194 @@
+/* ==============================================================
+   移动端语义 token 覆盖 + Element Plus 兜底
+   页面禁止再各自写字号 / 间距 / 控件尺寸的 media query。
+   ============================================================== */
+
+@media (max-width: 1024px) {
+  :root {
+    --content-padding: 16px;
+    --layout-page-padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --content-padding: 12px;
+    --layout-page-padding: 12px;
+    --font-size-page-title: 18px;
+    --font-size-card-title: 15px;
+    --amount-font-size: 17px;
+    --amount-font-size-lg: 22px;
+    --chart-height-lg: 240px;
+    --chart-height-sm: 200px;
+    --touch-target-min: 44px;
+  }
+
+  html,
+  body,
+  #app {
+    overflow: hidden;
+  }
+
+  /* 输入框 ≥16px，避免 iOS Safari 聚焦自动放大 */
+  .el-input__inner,
+  .el-textarea__inner,
+  .el-select__wrapper,
+  .login-input .el-input__inner {
+    font-size: 16px !important;
+  }
+
+  .el-button {
+    min-height: var(--touch-target-min);
+  }
+
+  .el-button + .el-button {
+    margin-left: 8px;
+  }
+
+  .el-menu-item {
+    min-height: var(--touch-target-min);
+  }
+
+  .page-container {
+    padding: var(--layout-page-padding);
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-base);
+  }
+
+  .page-header h2,
+  .page-title {
+    font-size: var(--font-size-page-title);
+  }
+
+  .page-desc {
+    color: var(--text-secondary);
+  }
+
+  .page-inline-filters,
+  .search-section,
+  .search-section-top,
+  .search-form {
+    width: 100%;
+  }
+
+  /* 低频页表格：横向滚动兜底 */
+  .table-section,
+  .table-wrapper,
+  .content-section,
+  .content-card {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .el-pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 12px 0;
+  }
+
+  .el-pagination .el-pagination__sizes,
+  .el-pagination .el-pagination__jump {
+    display: none;
+  }
+
+  .el-dialog {
+    --el-dialog-width: 92vw !important;
+    width: 92vw !important;
+    max-width: 92vw;
+    margin: 8vh auto !important;
+  }
+
+  .el-message-box {
+    width: 90vw !important;
+    max-width: 90vw;
+  }
+
+  .el-date-range-picker {
+    width: min(100vw - 16px, 360px) !important;
+  }
+
+  .el-picker-panel,
+  .el-date-range-picker__content {
+    max-width: 100%;
+  }
+}
+
+/* 触控设备取消依赖 hover 的位移，避免点按残影 */
+@media (hover: none) {
+  .el-card:hover,
+  .stat-card:hover,
+  .chart-card:hover {
+    transform: none;
+    box-shadow: var(--shadow-card) !important;
+  }
+}
+
+/* 移动端导航抽屉（teleport 到 body） */
+.mobile-nav-drawer.el-drawer {
+  background: var(--bg-sidebar);
+}
+
+.mobile-nav-drawer .el-drawer__body {
+  padding: 0;
+  background: var(--bg-sidebar);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mobile-nav-drawer .el-drawer__header {
+  display: none;
+}
+
+/* 移动端筛选抽屉 */
+.mobile-filter-drawer .el-drawer__body {
+  padding: 16px 16px calc(16px + var(--safe-area-bottom));
+}
+
+.mobile-filter-drawer .el-form--inline {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.mobile-filter-drawer .el-form--inline .el-form-item,
+.mobile-filter-drawer .el-form-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  margin-right: 0;
+  margin-bottom: 16px;
+}
+
+.mobile-filter-drawer .el-form-item__label {
+  justify-content: flex-start;
+  margin-bottom: 6px;
+}
+
+.mobile-filter-drawer .el-form-item__content,
+.mobile-filter-drawer .el-select,
+.mobile-filter-drawer .el-date-editor,
+.mobile-filter-drawer .el-input,
+.mobile-filter-drawer .el-input-number {
+  width: 100% !important;
+}
+
+.mobile-filter-drawer .search-buttons {
+  display: none;
+}
+
+.mobile-filter-drawer .el-drawer__footer {
+  padding: 12px 16px calc(12px + var(--safe-area-bottom));
+  display: flex;
+  gap: 12px;
+}
+
+.mobile-filter-drawer .el-drawer__footer .el-button {
+  flex: 1;
+}

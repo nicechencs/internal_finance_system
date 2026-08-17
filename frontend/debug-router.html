@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>路由调试工具</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .debug-panel {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+      border-bottom: 2px solid #4F46E5;
+      padding-bottom: 10px;
+    }
+    .issue {
+      background: #FEF2F2;
+      border-left: 4px solid #EF4444;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .warning {
+      background: #FEF3C7;
+      border-left: 4px solid #F59E0B;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background: #D1FAE5;
+      border-left: 4px solid #10B981;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    code {
+      background: #F3F4F6;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+    }
+    .fix-button {
+      background: #4F46E5;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    .fix-button:hover {
+      background: #4338CA;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 路由切换问题诊断报告</h1>
+
+  <div class="debug-panel">
+    <h2>问题分析</h2>
+
+    <div class="issue">
+      <h3>❌ 问题 1: el-menu 的 router 模式可能存在问题</h3>
+      <p><strong>当前配置：</strong></p>
+      <code>&lt;el-menu :default-active="activeMenu" router class="sidebar-menu"&gt;</code>
+      <p><strong>问题描述：</strong>Element Plus 的 <code>router</code> 属性会自动将 <code>index</code> 作为路由路径进行跳转，但这可能与 Vue Router 的导航守卫产生冲突。</p>
+      <p><strong>症状：</strong>点击菜单项时，URL 改变但页面内容不更新。</p>
+    </div>
+
+    <div class="warning">
+      <h3>⚠️ 问题 2: activeMenu 计算属性可能不够精确</h3>
+      <p><strong>当前代码：</strong></p>
+      <code>const activeMenu = computed(() => route.path)</code>
+      <p><strong>潜在问题：</strong>对于带参数的路由（如 <code>/accounts/:id</code>），<code>route.path</code> 会返回完整路径（如 <code>/accounts/123</code>），但菜单项的 <code>index</code> 是 <code>/accounts</code>，导致菜单高亮不正确。</p>
+    </div>
+
+    <div class="warning">
+      <h3>⚠️ 问题 3: 路由守卫可能阻止导航</h3>
+      <p><strong>当前守卫：</strong></p>
+      <pre><code>router.beforeEach((to, from, next) => {
+  // 检查认证和权限
+  if (to.meta.requiresAuth && !userStore.isLoggedIn()) {
+    next('/login')
+    return
+  }
+  // ...
+})</code></pre>
+      <p><strong>潜在问题：</strong>如果 userStore 状态异常或权限检查逻辑有误，可能导致导航被阻止。</p>
+    </div>
+
+    <div class="issue">
+      <h3>❌ 问题 4: 组件可能没有正确响应路由变化</h3>
+      <p><strong>症状：</strong>路由改变但组件内容不更新。</p>
+      <p><strong>原因：</strong>Vue Router 在相同组件间切换时，默认会复用组件实例，不会触发 <code>onMounted</code> 等生命周期钩子。</p>
+      <p><strong>需要检查：</strong>组件是否使用了 <code>watch(route, ...)</code> 或 <code>onBeforeRouteUpdate</code> 来响应路由参数变化。</p>
+    </div>
+  </div>
+
+  <div class="debug-panel">
+    <h2>推荐修复方案</h2>
+
+    <div class="success">
+      <h3>✅ 方案 1: 改用手动导航（推荐）</h3>
+      <p>移除 <code>router</code> 属性，改用 <code>@select</code> 事件手动导航：</p>
+      <pre><code>&lt;el-menu
+  :default-active="activeMenu"
+  @select="handleMenuSelect"
+  class="sidebar-menu"
+&gt;
+
+const handleMenuSelect = (index: string) => {
+  router.push(index)
+}</code></pre>
+      <p><strong>优点：</strong>完全控制导航逻辑，避免 Element Plus 和 Vue Router 的冲突。</p>
+    </div>
+
+    <div class="success">
+      <h3>✅ 方案 2: 优化 activeMenu 计算</h3>
+      <p>改进菜单高亮逻辑，支持带参数的路由：</p>
+      <pre><code>const activeMenu = computed(() => {
+  const path = route.path
+  // 处理详情页等带参数的路由
+  if (path.startsWith('/accounts/') && path !== '/accounts') return '/accounts'
+  if (path.startsWith('/customers/') && path !== '/customers') return '/customers'
+  if (path.startsWith('/suppliers/') && path !== '/suppliers') return '/suppliers'
+  if (path.startsWith('/persons/') && path !== '/persons') return '/persons'
+  if (path.startsWith('/projects/') && path !== '/projects') return '/projects'
+  if (path.startsWith('/receivables/') && path !== '/receivables') return '/finance'
+  if (path.startsWith('/payables/') && path !== '/payables') return '/finance'
+  return path
+})</code></pre>
+    </div>
+
+    <div class="success">
+      <h3>✅ 方案 3: 添加路由变化监听</h3>
+      <p>在需要响应路由变化的组件中添加：</p>
+      <pre><code>import { watch } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+
+watch(() => route.params, (newParams) => {
+  // 重新加载数据
+  loadData()
+}, { immediate: true })</code></pre>
+    </div>
+
+    <div class="success">
+      <h3>✅ 方案 4: 添加路由调试日志</h3>
+      <p>在路由守卫中添加调试信息：</p>
+      <pre><code>router.beforeEach((to, from, next) => {
+  console.log('🔄 路由导航:', {
+    from: from.path,
+    to: to.path,
+    isLoggedIn: userStore.isLoggedIn(),
+    userRole: userStore.user?.role
+  })
+  // ... 原有逻辑
+})</code></pre>
+    </div>
+  </div>
+
+  <div class="debug-panel">
+    <h2>检查清单</h2>
+    <ul>
+      <li>✅ 检查浏览器控制台是否有 JavaScript 错误</li>
+      <li>✅ 检查 Network 面板，确认 API 请求是否正常发送</li>
+      <li>✅ 检查 Vue DevTools 中的路由状态和组件树</li>
+      <li>✅ 检查 localStorage 中的 token 是否有效</li>
+      <li>✅ 检查用户权限是否正确配置</li>
+      <li>✅ 测试不同角色用户的菜单访问</li>
+    </ul>
+  </div>
+
+  <div class="debug-panel">
+    <h2>快速测试步骤</h2>
+    <ol>
+      <li>打开浏览器开发者工具（F12）</li>
+      <li>切换到 Console 标签</li>
+      <li>点击侧边栏菜单项</li>
+      <li>观察：
+        <ul>
+          <li>URL 是否改变？</li>
+          <li>是否有错误信息？</li>
+          <li>是否有路由导航日志？</li>
+          <li>Network 面板是否有新的 API 请求？</li>
+        </ul>
+      </li>
+      <li>在 Vue DevTools 中检查：
+        <ul>
+          <li>当前路由信息（Router 标签）</li>
+          <li>组件是否重新渲染（Components 标签）</li>
+          <li>Pinia store 状态（Pinia 标签）</li>
+        </ul>
+      </li>
+    </ol>
+  </div>
+
+  <script>
+    console.log('%c🔍 路由诊断工具已加载', 'color: #4F46E5; font-size: 16px; font-weight: bold;');
+    console.log('请按照上述步骤进行排查');
+  </script>
+</body>
+</html>

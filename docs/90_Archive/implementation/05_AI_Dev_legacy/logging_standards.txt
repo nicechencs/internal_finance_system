@@ -1,0 +1,76 @@
+# 日志记录规范
+
+> 后端日志记录完整规范，结合项目实际代码总结。
+> 更新日期: 2026-03-14
+
+## 一、日志级别
+
+| 级别 | Controller 层 | Service 层 | 场景 |
+|------|--------------|-----------|------|
+| Debug | API 调用入口 | 中间步骤、参数验证 | 开发调试，生产不输出 |
+| Information | 操作成功 | 方法入口、业务成功 | 正常业务操作 |
+| Warning | 参数验证失败 | 业务验证失败、资源不存在 | 业务警告 |
+| Error | 异常捕获 | 异常捕获、事务回滚 | 系统错误 |
+| Critical | - | - | 系统不可用 |
+
+## 二、日志格式
+
+函数入口第一条日志包含 `ClassName.MethodName`，后续日志不重复函数名。
+
+Controller 层：
+- 入口 LogDebug: "XxxController.Method 调用: UserId={UserId}, Param={Param}"
+- 成功 LogInformation: "成功: UserId={UserId}, ResultId={Id}"
+- 异常 LogError: "失败: UserId={UserId}, Param={Param}"
+
+Service 层：
+- 入口 LogInformation: "XxxService.Method - 开始操作: Param={Param}"
+- 中间 LogDebug: "验证参数: Param={Param}"
+- 警告 LogWarning: "数据不存在: Id={Id}"
+- 成功 LogInformation: "操作成功: Id={Id}, Name={Name}"
+- 异常 LogError: "操作失败: Param={Param}"
+
+参数命名：PascalCase，业务实体用完整名（{TransactionId} 非 {TxId}）。
+参数顺序：主体ID → 操作类型 → 关键数据 → 统计数据。
+
+## 三、各层要求
+
+Controller：入口 Debug（含 UserId）、成功 Info、异常 Error（含异常对象）。
+Service：入口 Info（含 ClassName.Method）、中间 Debug、业务异常 Warning、成功 Info、系统异常 Error。
+私有方法：入口 Debug、关键结果 Info/Debug、异常 Warning/Error。
+Repository：操作 Debug、批量数量 Info、异常 Error。
+Middleware：认证失败 Warning、全局异常 Error、性能超阈值 Warning。
+
+## 四、特殊场景
+
+异常处理：ValidationException/NotFoundException 直接 throw 不记日志；通用 Exception LogError 后 throw；事务回滚 LogError。
+批量操作：入口记总数、逐项 Debug、完成 Info（成功/失败统计）、失败项 Warning。
+性能监控：Stopwatch 记耗时，完成 Info，超 3 秒 Warning。
+
+## 五、敏感信息保护
+
+禁止记录：密码、JWT Token、完整银行卡号、完整身份证号。
+允许记录：用户ID、用户名、金额、日期、业务对象ID、操作类型和结果。
+
+## 六、日志文件配置
+
+存放位置：项目根目录 logs/，命名 app-yyyyMMdd.log。
+滚动策略：按天滚动，保留 30 天，单文件最大 50MB。
+环境配置：
+- Development: Console + File, 级别 Debug
+- Production: File, 级别 Information
+- 使用 Serilog 结构化日志，自动记录 CorrelationId
+
+## 七、实施状态
+
+全部三个阶段已完成，日志覆盖率 100%（33/33 文件）。
+
+| 层级 | 完成 | 总数 |
+|------|------|------|
+| Controller | 15 | 15 |
+| Service | 13 | 13 |
+| Repository | 1 | 1 |
+| Middleware | 4 | 4 |
+
+关键特性：结构化日志、多层性能监控（中间件 >1s / 报表 >3s）、完整业务上下文、CorrelationId 自动关联。
+
+待可选改进：AppDbContext EF Core SQL 日志（开发环境）。

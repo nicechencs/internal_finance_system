@@ -1,0 +1,36 @@
+# Backend test projects
+backend/tests/
+backend/**/*.Tests/
+
+# Frontend tests
+frontend/tests/
+frontend/**/*.test.ts
+frontend/**/*.spec.ts
+frontend/vitest.config.ts
+frontend/coverage/
+
+# Frontend dev dependencies (rebuilt in Docker)
+frontend/node_modules/
+
+# Build artifacts
+**/bin/
+**/obj/
+
+# Development files
+**/.git
+*.md
+docs/
+logs/
+scripts/
+*.bat
+
+# Sensitive local data (real bank statements, secrets, backups) must never enter build context
+data/
+.env*
+backups/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo

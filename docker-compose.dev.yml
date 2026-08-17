@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: finance_db
+    environment:
+      POSTGRES_DB: finance_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema/01_database_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - finance_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/FinanceApp.Api/Dockerfile
+    container_name: finance_api_dev
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      LOG_DIR: /app/logs
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=finance_dev;Username=postgres;Password=${DB_PASSWORD:-postgres}"
+      Cors__AllowedOrigins__0: "http://localhost:5173"
+    ports:
+      - "5000:8080"
+    volumes:
+      - ./logs/backend:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - finance_network
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: finance_web_dev
+    ports:
+      - "8080:80"
+    volumes:
+      - ./logs/frontend:/var/log/nginx
+    depends_on:
+      - api
+    networks:
+      - finance_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  finance_network:
+    driver: bridge

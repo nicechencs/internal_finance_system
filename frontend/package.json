@@ -1,0 +1,52 @@
+{
+  "name": "finance-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "preview": "vite preview",
+    "build-only": "vite build",
+    "type-check": "vue-tsc --build",
+    "generate:api": "swagger-typescript-api generate -p http://localhost:5187/swagger/v1/swagger.json -o ./src/api/generated -n api.ts --axios --extract-request-body --extract-response-body --extract-request-params --route-types",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "@vueuse/core": "^14.2.1",
+    "axios": "^1.13.6",
+    "dayjs": "^1.11.20",
+    "echarts": "^6.0.0",
+    "element-plus": "^2.13.5",
+    "pinia": "^3.0.4",
+    "qs": "^6.15.0",
+    "vue": "^3.5.29",
+    "vue-echarts": "^8.0.1",
+    "vue-router": "^5.0.3"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^24.11.0",
+    "@types/qs": "^6.15.0",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/ui": "^4.1.0",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/tsconfig": "^0.8.1",
+    "happy-dom": "^20.8.4",
+    "npm-run-all2": "^8.0.4",
+    "playwright": "^1.58.2",
+    "swagger-typescript-api": "^13.6.3",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-vue-devtools": "^8.0.6",
+    "vitest": "^4.1.0",
+    "vue-tsc": "^3.2.5"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

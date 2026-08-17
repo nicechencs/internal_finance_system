@@ -1,0 +1,93 @@
+================================================================================
+数据关联导航 + 行内编辑 + 批量导入 — 开发方案
+================================================================================
+
+版本：v2.1
+创建日期：2026-03-13
+实施日期：2026-03-14
+状态：Phase 0-3 已全部完成
+
+
+一、已完成工作摘要
+================================================================================
+
+Phase 0 — 修复阻塞性问题
+  - TransactionForm.vue 硬编码假数据改为调用真实 API
+  - 补充 projects/active 后端端点
+
+Phase 1 — 数据关联与导航增强
+  - 新增 3 个关联交易 API（by-customer / by-supplier / by-person）
+  - 新增 5 个详情页（账户/客户/供应商/人员/项目）及对应路由
+  - 交易列表页名称可点击跳转详情
+
+Phase 2 — 行内编辑改造
+  - 通用 composable：frontend/src/composables/useInlineEdit.ts
+  - 4 个简单模块改为行内编辑：客户/供应商/人员/账户
+  - 复杂模块（分类/项目/交易/应收/应付）保留 Dialog
+
+Phase 3 — 批量导入基础设施
+  - 通用批量响应 DTO：BatchCreateResponse.cs
+  - 4 个模块后端批量接口：POST /api/{customer,supplier,person,projects}/batch
+  - 前端对应批量 API 函数
+
+
+二、待后续版本实施
+================================================================================
+
+2.1 前端 Excel 导入 UI（Phase 3 剩余部分）
+  - 创建通用 ImportDialog.vue 组件
+  - 在客户/供应商/人员/项目列表页添加"导入"按钮
+  - 文件上传到后端解析，前端展示预览和结果
+  - 依赖已完成的 batch 后端接口
+
+2.2 定期存款管理
+  - 在 AccountType 枚举中新增 FixedDeposit 类型
+  - 支持��户间转账交易
+  - 仪表盘分别显示活期和定期余额
+
+2.3 人员交付/验收记录
+  - 确认需求后再设计
+  - 可能在 projects 表或新表实现
+
+2.4 详情页增强
+  - 各详情页添加数据导出 Excel 功能
+  - 添加余额趋势图、收款趋势图等数据可视化
+  - 详情页快速创建关联数据
+  - 项目详情页添加利润分析图表
+
+2.5 交易详情页增强
+  - 显示关联的应收/应付信息
+  - 添加跳转按钮到应收/应付详情页
+  - 新增 GET /api/transactions/{id}/related API
+
+2.6 数据权限控制
+  - 不同角色查看不同数据范围
+
+
+三、数据关联关系参考
+================================================================================
+
+  账户 (accounts)
+    ├─ 交易记录 (transactions)        — 通过 AccountId
+    └─ 银行流水 (bank_transactions)   — 通过 AccountId
+
+  客户 (customers)
+    ├─ 项目 (projects)                — 通过 CustomerId
+    ├─ 应收记录 (receivables)          — 通过 CustomerId
+    └─ 交易记录 (transactions)        — 通过 CustomerId
+
+  供应商 (suppliers)
+    ├─ 应付记录 (payables)            — 通过 SupplierId
+    └─ 交易记录 (transactions)        — 通过 SupplierId
+
+  人员 (persons)
+    ├─ 交易记录 (transactions)        — 通过 PersonId
+    └─ 分摊记录 (transaction_allocations) — 通过 PersonId
+
+  项目 (projects)
+    ├─ 交易记录 (transactions)        — 通过 ProjectId 或 Allocations
+    ├─ 应收记录 (receivables)          — 通过 ProjectId
+    ├─ 应付记录 (payables)            — 通过 ProjectId
+    └─ 分摊记录 (transaction_allocations) — 通过 ProjectId
+
+================================================================================

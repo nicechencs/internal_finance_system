@@ -1,0 +1,63 @@
+services:
+  api:
+    image: ghcr.io/${GITHUB_REPO_OWNER}/finance-api-test:${API_IMAGE_TAG:-latest}
+    container_name: finance_api_test
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      LOG_DIR: /app/logs
+      ConnectionStrings__DefaultConnection: "Host=${DB_HOST:-host.docker.internal};Port=${DB_PORT:-5432};Database=${DB_NAME:-finance_test};Username=${DB_USER:-postgres};Password=${DB_PASSWORD}"
+      Auth__CookieSecurePolicy: ${AUTH_COOKIE_SECURE_POLICY:-SameAsRequest}
+      Auth__BootstrapAdmin__Enabled: ${BOOTSTRAP_ADMIN_ENABLED:-false}
+      Auth__BootstrapAdmin__Username: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      Auth__BootstrapAdmin__Password: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      Auth__BootstrapAdmin__FullName: ${BOOTSTRAP_ADMIN_FULL_NAME:-Testing-Administrator}
+      Auth__BootstrapAdmin__Email: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN:-http://localhost:8081}
+    expose:
+      - "8080"
+    volumes:
+      - ./logs/backend-testing:/app/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - finance_network_test
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  web:
+    image: ghcr.io/${GITHUB_REPO_OWNER}/finance-web-test:${WEB_IMAGE_TAG:-latest}
+    container_name: finance_web_test
+    ports:
+      - "${WEB_PORT:-8081}:80"
+    volumes:
+      - ./logs/frontend-testing:/var/log/nginx
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - finance_network_test
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  finance_network_test:
+    driver: bridge

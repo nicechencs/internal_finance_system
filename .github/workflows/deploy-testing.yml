@@ -1,0 +1,255 @@
+name: Deploy to Testing
+
+# Manual only: a public repository must not SSH into a shared test host on every push.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-testing
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+  DEPLOY_PATH: /opt/finance-test
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.vars.outputs.sha_short }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set short SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/FinanceApp.Api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/finance-api-test:latest
+            ${{ env.IMAGE_PREFIX }}/finance-api-test:${{ steps.vars.outputs.sha_short }}
+          cache-from: type=gha,scope=testing-api
+          cache-to: type=gha,mode=max,scope=testing-api
+
+      - name: Build and push testing frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/finance-web-test:latest
+            ${{ env.IMAGE_PREFIX }}/finance-web-test:${{ steps.vars.outputs.sha_short }}
+          build-args: |
+            VITE_API_BASE_URL=/api
+          cache-from: type=gha,scope=testing-web
+          cache-to: type=gha,mode=max,scope=testing-web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testing
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Backup current testing deploy files on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TEST_SSH_HOST }}
+          port: ${{ secrets.TEST_SSH_PORT }}
+          username: ${{ secrets.TEST_SSH_USER }}
+          key: ${{ secrets.TEST_SSH_PRIVATE_KEY }}
+          script: |
+            set -eu
+            mkdir -p "${{ env.DEPLOY_PATH }}/.rollback/scripts/lib"
+
+            if [ -f "${{ env.DEPLOY_PATH }}/docker-compose.testing.yml" ]; then
+              cp "${{ env.DEPLOY_PATH }}/docker-compose.testing.yml" "${{ env.DEPLOY_PATH }}/.rollback/docker-compose.testing.yml"
+            fi
+
+            for file in deploy-testing.sh backup-database-testing.sh health-check-testing.sh restart-testing.sh restore-database-testing.sh view-logs-testing.sh simulate-testing-deployment.sh; do
+              if [ -f "${{ env.DEPLOY_PATH }}/scripts/$file" ]; then
+                cp "${{ env.DEPLOY_PATH }}/scripts/$file" "${{ env.DEPLOY_PATH }}/.rollback/scripts/$file"
+              fi
+            done
+
+            if [ -f "${{ env.DEPLOY_PATH }}/scripts/lib/testing-deploy.sh" ]; then
+              cp "${{ env.DEPLOY_PATH }}/scripts/lib/testing-deploy.sh" "${{ env.DEPLOY_PATH }}/.rollback/scripts/lib/testing-deploy.sh"
+            fi
+
+      - name: Sync testing deploy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.TEST_SSH_HOST }}
+          port: ${{ secrets.TEST_SSH_PORT }}
+          username: ${{ secrets.TEST_SSH_USER }}
+          key: ${{ secrets.TEST_SSH_PRIVATE_KEY }}
+          source: "docker-compose.testing.yml,.env.testing.example,scripts/deploy-testing.sh,scripts/backup-database-testing.sh,scripts/health-check-testing.sh,scripts/restart-testing.sh,scripts/restore-database-testing.sh,scripts/view-logs-testing.sh,scripts/simulate-testing-deployment.sh,scripts/lib/testing-deploy.sh"
+          target: ${{ env.DEPLOY_PATH }}
+          overwrite: true
+
+      - name: Deploy to testing server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TEST_SSH_HOST }}
+          port: ${{ secrets.TEST_SSH_PORT }}
+          username: ${{ secrets.TEST_SSH_USER }}
+          key: ${{ secrets.TEST_SSH_PRIVATE_KEY }}
+          script: |
+            set -eu
+            cd "${{ env.DEPLOY_PATH }}"
+
+            restore_deploy_files() {
+              mkdir -p scripts/lib
+
+              if [ -f .rollback/docker-compose.testing.yml ]; then
+                cp .rollback/docker-compose.testing.yml docker-compose.testing.yml
+              fi
+
+              for file in deploy-testing.sh backup-database-testing.sh health-check-testing.sh restart-testing.sh restore-database-testing.sh view-logs-testing.sh simulate-testing-deployment.sh; do
+                if [ -f ".rollback/scripts/$file" ]; then
+                  cp ".rollback/scripts/$file" "scripts/$file"
+                fi
+              done
+
+              if [ -f ".rollback/scripts/lib/testing-deploy.sh" ]; then
+                cp ".rollback/scripts/lib/testing-deploy.sh" "scripts/lib/testing-deploy.sh"
+              fi
+
+              chmod +x scripts/*.sh scripts/lib/*.sh || true
+            }
+
+            wait_for_container_health() {
+              container_name="$1"
+              timeout_seconds="$2"
+              elapsed=0
+
+              while [ "$elapsed" -lt "$timeout_seconds" ]; do
+                status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_name" 2>/dev/null || echo "missing")"
+
+                if [ "$status" = "healthy" ]; then
+                  echo "$container_name is healthy"
+                  return 0
+                fi
+
+                if [ "$status" = "unhealthy" ]; then
+                  echo "::error::$container_name became unhealthy"
+                  docker logs --tail 50 "$container_name" || true
+                  return 1
+                fi
+
+                sleep 5
+                elapsed=$((elapsed + 5))
+              done
+
+              echo "::error::Timed out waiting for $container_name to become healthy"
+              docker logs --tail 50 "$container_name" || true
+              return 1
+            }
+
+            rollback_previous_release() {
+              echo "::warning::Rolling back to previous testing container images"
+              echo "::warning::Database may have been migrated to a newer schema by the failed deployment."
+              echo "::warning::If the old containers fail to start, a manual database restore may be required."
+              restore_deploy_files
+
+              GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER}" docker compose -f docker-compose.testing.yml --env-file .env.testing stop api web || true
+              GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER}" docker compose -f docker-compose.testing.yml --env-file .env.testing rm -f api web || true
+
+              if [ "$OLD_API_IMAGE" != "none" ] && [ "$OLD_WEB_IMAGE" != "none" ]; then
+                docker tag "$OLD_API_IMAGE" "ghcr.io/${GITHUB_REPO_OWNER}/finance-api-test:rollback" || true
+                docker tag "$OLD_WEB_IMAGE" "ghcr.io/${GITHUB_REPO_OWNER}/finance-web-test:rollback" || true
+                export API_IMAGE_TAG="rollback"
+                export WEB_IMAGE_TAG="rollback"
+
+                GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER}" docker compose -f docker-compose.testing.yml --env-file .env.testing up -d
+              else
+                echo "No previous testing images found; leaving services stopped after failed first deployment"
+              fi
+            }
+
+            mkdir -p scripts/lib
+            chmod +x scripts/*.sh scripts/lib/*.sh || true
+
+            if [ ! -f .env.testing ]; then
+              echo "::error::.env.testing not found in ${{ env.DEPLOY_PATH }}"
+              echo "::error::Create it from .env.testing.example before running the testing deployment workflow"
+              exit 1
+            fi
+
+            set -a
+            . ./.env.testing
+            set +a
+
+            if [ -n "${DB_HOST:-}" ] && [ -n "${DB_NAME:-}" ]; then
+              ./scripts/backup-database-testing.sh || echo "::warning::Testing database backup failed, continuing deployment"
+            else
+              echo "Testing database settings are incomplete, skipping backup"
+            fi
+
+            export GITHUB_REPO_OWNER="${{ github.repository_owner }}"
+            export API_IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
+            export WEB_IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
+
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+            docker pull "ghcr.io/${GITHUB_REPO_OWNER}/finance-api-test:${API_IMAGE_TAG}"
+            docker pull "ghcr.io/${GITHUB_REPO_OWNER}/finance-web-test:${WEB_IMAGE_TAG}"
+
+            OLD_API_IMAGE="$(docker inspect --format='{{.Image}}' finance_api_test 2>/dev/null)" || OLD_API_IMAGE="none"
+            OLD_WEB_IMAGE="$(docker inspect --format='{{.Image}}' finance_web_test 2>/dev/null)" || OLD_WEB_IMAGE="none"
+
+            GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER}" docker compose -f docker-compose.testing.yml --env-file .env.testing stop api web || true
+            GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER}" docker compose -f docker-compose.testing.yml --env-file .env.testing rm -f api web || true
+            GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER}" docker compose -f docker-compose.testing.yml --env-file .env.testing up -d
+
+            if ! wait_for_container_health finance_api_test 240 || ! wait_for_container_health finance_web_test 180 || ! ./scripts/health-check-testing.sh; then
+              rollback_previous_release
+
+              exit 1
+            fi
+
+            WEB_PORT_VALUE="${WEB_PORT:-8081}"
+            AUTH_ME_STATUS="$(curl -sS -o /tmp/auth_me_test_body.txt -w "%{http_code}" "http://localhost:${WEB_PORT_VALUE}/api/auth/me" || true)"
+            if [ "$AUTH_ME_STATUS" != "401" ]; then
+              echo "::error::Unexpected status from /api/auth/me through testing web proxy: $AUTH_ME_STATUS"
+              cat /tmp/auth_me_test_body.txt || true
+
+              rollback_previous_release
+
+              exit 1
+            fi
+
+            echo "Testing deployment succeeded"
+            GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER}" docker compose -f docker-compose.testing.yml --env-file .env.testing ps
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "Testing deployment succeeded (commit: ${{ needs.build.outputs.image-tag }})"
+          else
+            echo "Testing deployment failed, review the workflow logs"
+          fi
