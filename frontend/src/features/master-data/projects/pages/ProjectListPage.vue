@@ -179,9 +179,9 @@
         </el-table-column>
         <el-table-column column-key="actions" label="操作" :width="getColumnWidth('actions', TABLE_COLUMN_WIDTH.actionTwo)" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="userStore.canEdit" link type="primary" size="small" @click="handleManageTags(row)">标签</el-button>
-            <el-button v-if="userStore.canEdit" link type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-if="userStore.canDelete" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="userStore.canEdit && canMutateProject(row.status)" link type="primary" size="small" @click="handleManageTags(row)">标签</el-button>
+            <el-button v-if="userStore.canEdit && canMutateProject(row.status)" link type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
+            <el-button v-if="userStore.canDelete && canMutateProject(row.status)" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -252,6 +252,7 @@ import { useRouteFilters } from '@/shared/composables/useRouteFilters'
 import { useListPageStatistics } from '@/shared/composables/useListPageStatistics'
 import { formatDateTime, formatCurrency, formatMoney } from '@/shared/utils/formatters'
 import TagEditorDialog from '@/components/tags/TagEditorDialog.vue'
+import { canMutateProject } from '@/features/master-data/projects/utils/projectStatus'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -369,16 +370,19 @@ const handleViewDetail = (row: Project) => {
 }
 
 const handleEdit = (row: Project) => {
+  if (!canMutateProject(row.status)) return
   currentProject.value = row
   formVisible.value = true
 }
 
 const handleManageTags = (row: Project) => {
+  if (!canMutateProject(row.status)) return
   tagEditTarget.value = { id: row.id, name: row.name }
   tagDialogVisible.value = true
 }
 
 const handleDelete = async (row: Project) => {
+  if (!canMutateProject(row.status)) return
   try {
     await ElMessageBox.confirm('确定要删除这个项目吗？', '提示', {
       confirmButtonText: '确定',

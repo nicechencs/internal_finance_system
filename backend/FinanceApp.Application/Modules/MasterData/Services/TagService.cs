@@ -346,6 +346,27 @@ public class TagService : ServiceBase, ITagService
         }
     }
 
+    private async Task EnsureOwnerMutableAsync(TagScope scope, long ownerId)
+    {
+        if (scope != TagScope.Project)
+        {
+            return;
+        }
+
+        var project = await ApplyPermissionFilter(_projectRepository.GetQueryable())
+            .FirstOrDefaultAsync(p => p.Id == ownerId);
+
+        if (project == null)
+        {
+            throw new NotFoundException($"{scope} Id={ownerId} 不存在或无权访问");
+        }
+
+        if (project.Status == ProjectStatus.Cancelled)
+        {
+            throw new ValidationException("已取消的项目不允许调整标签");
+        }
+    }
+
     public async Task<List<TagBindingDto>> GetBindingsAsync(string ownerType, long ownerId)
     {
         _logger.LogDebug("TagService.GetBindingsAsync - OwnerType={OwnerType}, OwnerId={OwnerId}", ownerType, ownerId);
@@ -415,6 +436,7 @@ public class TagService : ServiceBase, ITagService
             }
 
             await ValidateOwnerAccessAsync(scope, request.OwnerId);
+            await EnsureOwnerMutableAsync(scope, request.OwnerId);
 
             // 获取现有绑定
             var existingBindings = await _tagBindingRepository.GetQueryable()
@@ -516,6 +538,7 @@ public class TagService : ServiceBase, ITagService
             }
 
             await ValidateOwnerAccessAsync(scope, ownerId);
+            await EnsureOwnerMutableAsync(scope, ownerId);
 
             // 验证 tag 存在，tag.Scope == ownerType
             var tag = await _tagRepository.GetByIdAsync(tagId);
@@ -589,6 +612,7 @@ public class TagService : ServiceBase, ITagService
             }
 
             await ValidateOwnerAccessAsync(scope, ownerId);
+            await EnsureOwnerMutableAsync(scope, ownerId);
 
             var binding = await _tagBindingRepository.GetQueryable()
                 .FirstOrDefaultAsync(b => b.OwnerType == scope && b.OwnerId == ownerId && b.TagId == tagId);

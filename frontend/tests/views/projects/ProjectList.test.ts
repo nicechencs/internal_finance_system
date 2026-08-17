@@ -154,6 +154,71 @@ describe('ProjectList.vue', () => {
     }
   })
 
+  it('已取消项目不应显示标签、编辑和删除按钮', async () => {
+    const userStore = useUserStore()
+    userStore.setUser({ id: 1, username: 'admin', email: 'a@a.com', fullName: '管理员', role: 'Admin', isActive: true })
+
+    vi.mocked(projectApi.getProjects).mockResolvedValue(
+      mockAxiosResponse({
+        data: {
+          items: [
+            { ...mockProjects[0], status: 'Active' },
+            {
+              id: 3,
+              projectCode: 'PRJ003',
+              name: '已取消项目',
+              customerId: 1,
+              customerName: '客户A',
+              contractAmount: 10000,
+              status: 'Cancelled'
+            }
+          ],
+          total: 2
+        }
+      })
+    )
+    vi.mocked(projectApi.getProjectStatistics).mockResolvedValue(
+      mockAxiosResponse({
+        data: { totalCount: 2, totalContractAmount: 0, totalProfit: 0, totalReceivable: 0 }
+      })
+    )
+    vi.mocked(projectApi.getActiveProjects).mockResolvedValue(mockAxiosResponse({ data: [] }))
+
+    const wrapper = mountWithPlugins(ProjectList)
+    await flushPromises()
+
+    const rows = wrapper.findAll('.el-table__body .el-table__row')
+    expect(rows.length).toBeGreaterThanOrEqual(2)
+
+    const activeRowText = rows[0].text()
+    expect(activeRowText).toContain('标签')
+    expect(activeRowText).toContain('编辑')
+    expect(activeRowText).toContain('删除')
+
+    const cancelledRowText = rows[1].text()
+    expect(cancelledRowText).toContain('已取消')
+    expect(cancelledRowText).not.toContain('标签')
+    expect(cancelledRowText).not.toContain('编辑')
+    expect(cancelledRowText).not.toContain('删除')
+  })
+
+  it('已取消项目的写操作处理函数应直接返回', async () => {
+    const wrapper = mountWithPlugins(ProjectList)
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    const cancelled = { id: 9, name: '已取消项目', status: 'Cancelled' }
+
+    vm.handleEdit(cancelled)
+    vm.handleManageTags(cancelled)
+    await vm.handleDelete(cancelled)
+    await flushPromises()
+
+    expect(vm.formVisible).toBe(false)
+    expect(vm.tagDialogVisible).toBe(false)
+    expect(projectApi.deleteProject).not.toHaveBeenCalled()
+  })
+
   it('应该处理删除项目操作', async () => {
     vi.mocked(ElMessageBox.confirm).mockResolvedValue('confirm' as any)
     vi.mocked(projectApi.deleteProject).mockResolvedValue(mockAxiosResponse({}))

@@ -372,6 +372,7 @@ public class ProjectService : ServiceBase, IProjectService
 
             // 检查编辑权限
             EnsureCanEdit(project);
+            EnsureProjectMutable(project, "已取消的项目不允许编辑");
 
             // Validate customer exists if changed
             if (request.CustomerId.HasValue && request.CustomerId != project.CustomerId)
@@ -561,6 +562,7 @@ public class ProjectService : ServiceBase, IProjectService
 
             // 检查删除权限
             EnsureCanDelete(project);
+            EnsureProjectMutable(project, "已取消的项目不允许删除");
 
             _logger.LogDebug("准备删除项目: Id={Id}, 名称={Name}, 项目编号={Code}",
                 id, project.Name, project.ProjectCode);
@@ -569,12 +571,6 @@ public class ProjectService : ServiceBase, IProjectService
 
             if (await _referenceGuard.HasProjectReferencesAsync(id))
             {
-                if (project.Status == ProjectStatus.Cancelled)
-                {
-                    _logger.LogInformation("项目已归档且仅保留历史引用，跳过删除: Id={Id}, Name={Name}", id, project.Name);
-                    return;
-                }
-
                 project.Status = ProjectStatus.Cancelled;
                 _projectRepository.Update(project);
                 await _unitOfWork.SaveChangesAsync();
@@ -591,6 +587,10 @@ public class ProjectService : ServiceBase, IProjectService
             _logger.LogInformation("删除项目成功: Id={Id}, 名称={Name}", id, project.Name);
         }
         catch (NotFoundException)
+        {
+            throw;
+        }
+        catch (ValidationException)
         {
             throw;
         }
@@ -978,6 +978,14 @@ public class ProjectService : ServiceBase, IProjectService
                 && message.Contains("unique", StringComparison.OrdinalIgnoreCase));
     }
 
+    private static void EnsureProjectMutable(Project project, string message)
+    {
+        if (project.Status == ProjectStatus.Cancelled)
+        {
+            throw new ValidationException(message);
+        }
+    }
+
     private static ValidationException CreateDuplicateProjectCodeValidationException(string? projectCode)
     {
         var displayCode = string.IsNullOrWhiteSpace(projectCode) ? "当前项目编号" : projectCode.Trim();
@@ -994,6 +1002,8 @@ public class ProjectService : ServiceBase, IProjectService
         {
             throw new ValidationException("项目不存在");
         }
+
+        EnsureProjectMutable(project, "已取消的项目不允许初始化应收");
 
         // 幂等性检查：检查项目是否已经初始化过收款计划
         var existingReceivables = await _receivableRepository.GetQueryable()
