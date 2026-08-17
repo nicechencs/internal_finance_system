@@ -10,7 +10,7 @@
 - API 基础路径：`/api/*`
 - 开发演示账号：`admin / DemoOnly_ChangeMe!`（仅 Development；生产环境会拒绝该占位符）
 - 数据库 Schema、种子脚本已移到 `database/`
-- 本仓库默认分支为 `production`；日常开发建议在 `dev` 上进行
+- 本仓库默认分支为 `dev`；发布分支为 `release`；版本使用 `v*` 标签
 
 ## 文档入口
 
@@ -71,7 +71,8 @@ cd frontend && npm install && npm run dev
 当前生产事实源不再使用旧 `deploy/` 目录，而是以下内容：
 
 - 编排文件：`docker-compose.yml`
-- 自动发布：`.github/workflows/release-production.yml`（推送到 `production`）
+- 自动发布：`.github/workflows/release.yml`（推送 `v*` 标签，或手动 `workflow_dispatch`）
+- 发布镜像：`ghcr.io/<owner>/finance-api`、`ghcr.io/<owner>/finance-web`
 - 部署脚本：`scripts/deploy.sh`
 - 运维脚本：`scripts/*.sh`
 - 说明文档：[`docs/05_Operations/`](docs/05_Operations)
