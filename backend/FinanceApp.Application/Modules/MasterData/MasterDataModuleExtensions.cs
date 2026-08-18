@@ -18,6 +18,7 @@ public static class MasterDataModuleExtensions
         services.AddScoped<IProjectFinancialRecalculationService, ProjectFinancialRecalculationService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IConfigService, ConfigService>();
+        services.AddScoped<ISiteBrandService, SiteBrandService>();
         services.AddScoped<ITagService, TagService>();
         services.AddScoped<ITagAnalyticsService, TagAnalyticsService>();
         services.AddScoped<ITagRuleService, TagRuleService>();

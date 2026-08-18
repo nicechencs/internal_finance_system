@@ -3,6 +3,12 @@ import { PermissionGroups } from '@/shared/constants/permissions'
 
 export const systemRoutes: RouteRecordRaw[] = [
   {
+    path: 'settings/site',
+    name: 'SiteSettings',
+    component: () => import('@/features/system/pages/SiteSettingsPage.vue'),
+    meta: { title: '站点设置', roles: PermissionGroups.ADMIN_ONLY, icon: 'Setting', group: '系统设置', order: 11 }
+  },
+  {
     path: 'settings/users',
     name: 'UserManagement',
     component: () => import('@/features/system/pages/UserManagementPage.vue'),

@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import * as authApi from '@/api/auth'
 import Login from '@/views/Login.vue'
 import { flushPromises, mockAxiosResponse, mountWithPlugins } from '@tests/utils'
+import { useSiteBrandStore } from '@/features/system/stores/siteBrand'
 
 vi.mock('@/api/auth', () => ({
   login: vi.fn(),
@@ -35,6 +36,17 @@ describe('Login.vue', () => {
 
     expect(text).toContain('Finance Management System')
     expect(text).toContain('高效管理企业资金流、项目收支与日常财务协作')
+  })
+
+  it('应该渲染更新后的站点名称', async () => {
+    const wrapper = mountWithPlugins(Login)
+    const brandStore = useSiteBrandStore()
+    brandStore.apply({ siteName: '演示财务平台', siteNameEn: 'Demo Finance' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('演示财务平台')
+    expect(wrapper.text()).toContain('Demo Finance')
+    expect(document.title).toBe('演示财务平台')
   })
 
   it('应该在表单验证通过后调用登录 API 并跳转首页', async () => {

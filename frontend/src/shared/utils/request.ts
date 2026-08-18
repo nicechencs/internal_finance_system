@@ -61,10 +61,11 @@ service.interceptors.response.use(
     if (!error.response) {
       const requestUrl = error.config?.url || ''
       const isSessionProbe = requestUrl.includes('/auth/me')
+      const isPublicBrandProbe = requestUrl.includes('/public/brand')
       const errorCode = error.code === 'ECONNABORTED'
         ? ErrorCode.TIMEOUT_ERROR
         : ErrorCode.NETWORK_ERROR
-      if (!isSessionProbe) {
+      if (!isSessionProbe && !isPublicBrandProbe) {
         ElMessage.error(
           errorCode === ErrorCode.TIMEOUT_ERROR
             ? '请求超时，请检查网络后重试'
@@ -77,6 +78,7 @@ service.interceptors.response.use(
     const { status, data } = error.response
     const requestUrl = error.config?.url || ''
     const isSessionProbe = requestUrl.includes('/auth/me')
+    const isPublicBrandProbe = requestUrl.includes('/public/brand')
 
     let errorCode: ErrorCode
     let errorMessage: string
@@ -85,10 +87,12 @@ service.interceptors.response.use(
       case 401: {
         errorCode = ErrorCode.UNAUTHORIZED
         errorMessage = data?.message || '未登录或登录已失效'
-        const userStore = useUserStore()
-        userStore.logout()
-        if (router.currentRoute.value.path !== '/login') {
-          router.push('/login')
+        if (!isPublicBrandProbe) {
+          const userStore = useUserStore()
+          userStore.logout()
+          if (router.currentRoute.value.path !== '/login') {
+            router.push('/login')
+          }
         }
         break
       }
@@ -122,7 +126,7 @@ service.interceptors.response.use(
         break
     }
 
-    if (!(status === 401 && isSessionProbe)) {
+    if (!(status === 401 && isSessionProbe) && !isPublicBrandProbe) {
       ElMessage.error(errorMessage)
     }
 
