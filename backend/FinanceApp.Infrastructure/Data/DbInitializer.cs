@@ -1,4 +1,5 @@
 using FinanceApp.Domain.Configuration;
+using FinanceApp.Domain.Constants;
 using FinanceApp.Domain.Entities;
 using FinanceApp.Domain.Enums;
 using FinanceApp.Domain.Interfaces;
@@ -18,6 +19,7 @@ public static class DbInitializer
         {
             await SeedBootstrapAdminAsync(context, logger, serviceProvider);
             await SeedDefaultCategoriesAsync(context, logger);
+            await SeedDefaultSiteBrandAsync(context, logger);
         }
         catch (Exception ex)
         {
@@ -249,6 +251,56 @@ public static class DbInitializer
         context.Categories.AddRange(categories);
         await context.SaveChangesAsync();
         logger.LogInformation("Default categories created successfully, Count={Count}", categories.Count);
+    }
+
+    private static async Task SeedDefaultSiteBrandAsync(AppDbContext context, ILogger logger)
+    {
+        var existingKeys = await context.SystemConfigs
+            .Where(c => c.ConfigKey == SiteBrandDefaults.SiteNameKey || c.ConfigKey == SiteBrandDefaults.SiteNameEnKey)
+            .Select(c => c.ConfigKey)
+            .ToListAsync();
+
+        var now = DateTime.UtcNow;
+        var added = 0;
+
+        if (!existingKeys.Contains(SiteBrandDefaults.SiteNameKey))
+        {
+            context.SystemConfigs.Add(new SystemConfig
+            {
+                ConfigKey = SiteBrandDefaults.SiteNameKey,
+                ConfigValue = SiteBrandDefaults.SiteName,
+                ConfigType = "string",
+                Description = SiteBrandDefaults.SiteNameDescription,
+                IsActive = true,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            added++;
+        }
+
+        if (!existingKeys.Contains(SiteBrandDefaults.SiteNameEnKey))
+        {
+            context.SystemConfigs.Add(new SystemConfig
+            {
+                ConfigKey = SiteBrandDefaults.SiteNameEnKey,
+                ConfigValue = SiteBrandDefaults.SiteNameEn,
+                ConfigType = "string",
+                Description = SiteBrandDefaults.SiteNameEnDescription,
+                IsActive = true,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            added++;
+        }
+
+        if (added == 0)
+        {
+            logger.LogInformation("Default site brand configs already exist. Skipping site brand seeding.");
+            return;
+        }
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Default site brand configs created successfully, Count={Count}", added);
     }
 
     private static string NormalizeUsername(string username)

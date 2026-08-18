@@ -5,6 +5,7 @@ using FinanceApp.Application.Modules.MasterData.Services;
 using FinanceApp.Application.Tests.Helpers;
 using FinanceApp.Domain.Entities;
 using FinanceApp.Domain.Interfaces;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -20,7 +21,11 @@ public class ConfigServiceTests : TestBase
     {
         _repositoryMock = new Mock<IRepository<SystemConfig>>();
         _loggerMock = new Mock<ILogger<ConfigService>>();
-        _service = new ConfigService(_repositoryMock.Object, _loggerMock.Object, UnitOfWorkMock.Object);
+        _service = new ConfigService(
+            _repositoryMock.Object,
+            _loggerMock.Object,
+            UnitOfWorkMock.Object,
+            new MemoryCache(new MemoryCacheOptions()));
     }
 
     [Fact]
@@ -250,5 +255,22 @@ public class ConfigServiceTests : TestBase
 
         // Assert
         config.ConfigValue.Should().Be("");
+    }
+
+    [Fact]
+    public async Task UpdateConfigAsync_WithBlankSiteName_ShouldThrowValidationException()
+    {
+        var config = new SystemConfig
+        {
+            Id = 1,
+            ConfigKey = "system_name",
+            ConfigValue = "财务管理系统",
+            IsActive = true
+        };
+        var queryableMock = new List<SystemConfig> { config }.AsQueryable().BuildMock();
+        _repositoryMock.Setup(r => r.GetQueryable()).Returns(queryableMock.Object);
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.UpdateConfigAsync("system_name", "   "));
+        config.ConfigValue.Should().Be("财务管理系统");
     }
 }

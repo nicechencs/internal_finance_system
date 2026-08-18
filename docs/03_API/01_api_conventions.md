@@ -15,7 +15,7 @@
 ## 基础路径
 
 - 大多数控制器采用 `api/[controller]`
-- 少数控制器为显式路径，例如 `api/reports`、`api/audit-logs`、`api/configs`
+- 少数控制器为显式路径，例如 `api/reports`、`api/audit-logs`、`api/configs`、`api/public/brand`
 
 ## 认证方式
 
@@ -23,6 +23,8 @@
 - 当前用户：`GET /api/auth/me`
 - 退出：`POST /api/auth/logout`
 - 前端通过 Cookie 会话和 `withCredentials` 访问受保护接口
+- 公开品牌：`GET /api/public/brand`（匿名，仅返回站点名称字段）
+- 管理员更新站点名称：`PUT /api/configs/site-brand`（仅 Admin）
 
 ## 统一响应结构
 

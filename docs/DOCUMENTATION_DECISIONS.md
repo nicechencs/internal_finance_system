@@ -118,3 +118,15 @@
 - 默认分支：`dev`；发布分支：`release`；版本：`v*` 标签。
 - 自动发布工作流：`.github/workflows/release.yml`，推送 `ghcr.io/<owner>/finance-api` 与 `ghcr.io/<owner>/finance-web`。
 - 上述事实写入根 `README.md`、开发入门和 `docs/05_Operations/` 主文档；`docs/90_Archive/` 保留历史表述不改。
+
+### 12. 站点名称可运行时配置
+
+原因：
+- 用户可见品牌原先硬编码在登录页、侧边栏、页脚和 `index.html`，部署后只能改源码重新构建。
+- 需要管理员可持久化修改，同时让未登录的登录页也能读取，且公开接口不能泄露其他系统配置。
+
+执行结果：
+- 默认中文名称仍为「财务管理系统」，默认英文副标题仍为 `Finance Management System`。
+- 配置写入 `system_configs.system_name` / `system_name_en`，启动种子与迁移均按「不存在才插入」处理，不覆盖已有值。
+- 公开接口 `GET /api/public/brand` 只返回 `siteName`、`siteNameEn`；更新接口仅 Admin 可调用。
+- 代码标识、镜像名、仓库名和业务页面标题不随站点名称变化。

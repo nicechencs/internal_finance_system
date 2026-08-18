@@ -33,6 +33,22 @@
 - 外部 PostgreSQL 可连接
 - 已准备 `.env.production`（或等价环境变量）
 
+## 站点名称
+
+管理员可在登录后的「系统设置 → 站点设置」中修改站点名称和英文副标题。该配置持久化在 `system_configs` 表：
+
+- `system_name`：站点名称，默认 `财务管理系统`，最长 50 个字符
+- `system_name_en`：英文副标题，默认 `Finance Management System`，可留空，最长 80 个字符
+
+未配置、值为空白或读取失败时，界面回退到上述默认名称，升级后不会出现空白标题。
+
+相关接口：
+
+- 公开读取：`GET /api/public/brand`（无需登录，只返回 `siteName` / `siteNameEn`）
+- 管理员更新：`PUT /api/configs/site-brand`（仅 `Admin`）
+
+不要把站点名称写进环境变量或前端构建参数；也不要修改代码标识（`FinanceApp.*`、`finance-api`、`finance-web`）。
+
 ## 当前注意事项
 
 - 当前对外访问入口是 `WEB_PORT`，不是直接暴露 API 端口

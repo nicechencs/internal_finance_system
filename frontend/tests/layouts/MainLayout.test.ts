@@ -4,6 +4,7 @@ import * as authApi from '@/api/auth'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { flushPromises, mountWithPlugins } from '@tests/utils'
 import { useUserStore } from '@/stores/user'
+import { useSiteBrandStore } from '@/features/system/stores/siteBrand'
 
 vi.mock('@/api/auth', () => ({
   logout: vi.fn().mockResolvedValue({ data: { success: true } })
@@ -56,7 +57,17 @@ describe('MainLayout.vue', () => {
 
   it('应该显示系统 Logo 和名称', () => {
     const wrapper = mountWithPlugins(MainLayout)
-    expect(wrapper.text()).toContain('财务系统')
+    expect(wrapper.text()).toContain('财务管理系统')
+  })
+
+  it('应该渲染更新后的站点名称并同步标题', async () => {
+    const wrapper = mountWithPlugins(MainLayout)
+    const brandStore = useSiteBrandStore()
+    brandStore.apply({ siteName: '自定义财务', siteNameEn: 'Custom Finance' })
+    await nextTick()
+
+    expect(wrapper.text()).toContain('自定义财务')
+    expect(document.title).toBe('自定义财务')
   })
 
   it('应该渲染有权限的菜单项', async () => {

@@ -5,8 +5,8 @@
         <el-icon class="brand-icon" :size="64" color="#fff">
           <DataAnalysis />
         </el-icon>
-        <h1 class="brand-title">财务管理系统</h1>
-        <p class="brand-subtitle">Finance Management System</p>
+        <h1 class="brand-title">{{ brandStore.siteName }}</h1>
+        <p v-if="brandStore.siteNameEn" class="brand-subtitle">{{ brandStore.siteNameEn }}</p>
         <p class="brand-desc">高效管理企业资金流、项目收支与日常财务协作</p>
       </div>
     </div>
@@ -56,7 +56,7 @@
           </el-form-item>
         </el-form>
 
-        <p class="copyright">&copy; 2026 财务管理系统</p>
+        <p class="copyright">&copy; 2026 {{ brandStore.siteName }}</p>
       </div>
     </div>
   </div>
@@ -70,9 +70,11 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { DataAnalysis } from '@element-plus/icons-vue'
 import { login } from '@/features/auth/api/auth'
 import { useUserStore } from '@/features/auth/stores/user'
+import { useSiteBrandStore } from '@/features/system/stores/siteBrand'
 
 const router = useRouter()
 const userStore = useUserStore()
+const brandStore = useSiteBrandStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 

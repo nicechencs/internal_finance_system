@@ -2,7 +2,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using FinanceApp.Domain.Constants;
 using FinanceApp.Infrastructure.Data;
 using FinanceApp.Domain.Entities;
 using FinanceApp.Domain.Enums;
@@ -62,8 +64,11 @@ public abstract class IntegrationTestBase : IClassFixture<IntegrationTestFactory
         DbContext.Suppliers.RemoveRange(DbContext.Suppliers.IgnoreQueryFilters());
         DbContext.Persons.RemoveRange(DbContext.Persons.IgnoreQueryFilters());
         DbContext.Users.RemoveRange(DbContext.Users.IgnoreQueryFilters());
+        DbContext.SystemConfigs.RemoveRange(DbContext.SystemConfigs.IgnoreQueryFilters());
         DbContext.SaveChanges();
         DbContext.ChangeTracker.Clear();
+
+        Scope.ServiceProvider.GetService<IMemoryCache>()?.Remove(SiteBrandDefaults.PublicBrandCacheKey);
     }
 
     protected async Task<string> GetAuthTokenAsync()

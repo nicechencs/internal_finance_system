@@ -582,7 +582,8 @@ INSERT INTO categories (name, parent_id, category_type, level, sort_order, descr
 
 -- 9.3 系统配置
 INSERT INTO system_configs (config_key, config_value, config_type, description) VALUES
-('system_name', '财务管理系统', 'string', '系统名称'),
+('system_name', '财务管理系统', 'string', '站点名称'),
+('system_name_en', 'Finance Management System', 'string', '站点英文副标题'),
 ('default_currency', 'CNY', 'string', '默认货币'),
 ('fiscal_year_start', '01-01', 'string', '财年开始日期（月-日）'),
 ('audit_retention_months', '6', 'number', '审计日志保留月数（3-6）');

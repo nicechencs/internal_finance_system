@@ -1,5 +1,7 @@
 using FluentAssertions;
 using FinanceApp.Domain.Configuration;
+using FinanceApp.Domain.Constants;
+using FinanceApp.Domain.Entities;
 using FinanceApp.Domain.Interfaces;
 using FinanceApp.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +36,31 @@ public class DbInitializerTests
         await DbInitializer.SeedAsync(context, NullLogger.Instance, services);
 
         context.Users.Should().ContainSingle(u => u.Username == DemoCredentials.Username);
+        context.SystemConfigs.Should().Contain(c =>
+            c.ConfigKey == SiteBrandDefaults.SiteNameKey && c.ConfigValue == SiteBrandDefaults.SiteName);
+        context.SystemConfigs.Should().Contain(c =>
+            c.ConfigKey == SiteBrandDefaults.SiteNameEnKey && c.ConfigValue == SiteBrandDefaults.SiteNameEn);
+    }
+
+    [Fact]
+    public async Task SeedAsync_DoesNotOverwriteExistingSiteName()
+    {
+        await using var context = CreateContext();
+        context.SystemConfigs.Add(new SystemConfig
+        {
+            ConfigKey = SiteBrandDefaults.SiteNameKey,
+            ConfigValue = "已有站点",
+            ConfigType = "string",
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var services = BuildServices(context, DemoCredentials.Password, Environments.Development);
+        await DbInitializer.SeedAsync(context, NullLogger.Instance, services);
+
+        context.SystemConfigs.Should().ContainSingle(c => c.ConfigKey == SiteBrandDefaults.SiteNameKey)
+            .Which.ConfigValue.Should().Be("已有站点");
+        context.SystemConfigs.Should().Contain(c => c.ConfigKey == SiteBrandDefaults.SiteNameEnKey);
     }
 
     private static AppDbContext CreateContext()

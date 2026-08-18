@@ -4,6 +4,7 @@ using FinanceApp.Application.Modules.MasterData.Interfaces;
 using FinanceApp.Domain.Entities;
 using FinanceApp.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace FinanceApp.Application.Modules.MasterData.Services;
@@ -13,12 +14,18 @@ public class ConfigService : IConfigService
     private readonly IRepository<SystemConfig> _configRepository;
     private readonly ILogger<ConfigService> _logger;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMemoryCache _cache;
 
-    public ConfigService(IRepository<SystemConfig> configRepository, ILogger<ConfigService> logger, IUnitOfWork unitOfWork)
+    public ConfigService(
+        IRepository<SystemConfig> configRepository,
+        ILogger<ConfigService> logger,
+        IUnitOfWork unitOfWork,
+        IMemoryCache cache)
     {
         _configRepository = configRepository;
         _logger = logger;
         _unitOfWork = unitOfWork;
+        _cache = cache;
     }
 
     public async Task<List<ConfigDto>> GetAllConfigsAsync()
@@ -108,12 +115,23 @@ public class ConfigService : IConfigService
                 throw new NotFoundException($"Config with key '{key}' not found");
             }
 
+            if (SiteBrandValidator.IsBrandKey(key))
+            {
+                SiteBrandValidator.ValidateBrandValue(key, value);
+                value = value?.Trim() ?? string.Empty;
+            }
+
             var oldValue = config.ConfigValue;
             config.ConfigValue = value;
             config.UpdatedAt = DateTime.UtcNow;
 
             _configRepository.Update(config);
             await _unitOfWork.SaveChangesAsync();
+
+            if (SiteBrandValidator.IsBrandKey(key))
+            {
+                SiteBrandService.InvalidateCache(_cache);
+            }
 
             _logger.LogInformation(
                 "System config updated: Key={Key}, OldHasValue={OldHasValue}, OldValueLength={OldValueLength}, NewHasValue={NewHasValue}, NewValueLength={NewValueLength}",

@@ -14,12 +14,26 @@ namespace FinanceApp.Api.Controllers.MasterData;
 public class ConfigController : BaseApiController
 {
     private readonly IConfigService _configService;
+    private readonly ISiteBrandService _siteBrandService;
     private readonly ILogger<ConfigController> _logger;
 
-    public ConfigController(IConfigService configService, ILogger<ConfigController> logger)
+    public ConfigController(
+        IConfigService configService,
+        ISiteBrandService siteBrandService,
+        ILogger<ConfigController> logger)
     {
         _configService = configService;
+        _siteBrandService = siteBrandService;
         _logger = logger;
+    }
+
+    [HttpPut("site-brand")]
+    public async Task<ActionResult<ApiResponse<PublicBrandDto>>> UpdateSiteBrand([FromBody] UpdateSiteBrandRequest request)
+    {
+        _logger.LogInformation("[ConfigController.UpdateSiteBrand]");
+
+        var result = await _siteBrandService.UpdateSiteBrandAsync(request);
+        return Ok(ApiResponse<PublicBrandDto>.SuccessResponse(result, "站点名称更新成功"));
     }
 
     [HttpGet]

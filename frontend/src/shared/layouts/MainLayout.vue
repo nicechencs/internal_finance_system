@@ -3,7 +3,7 @@
     <el-aside v-show="!isMobile" width="220px" class="sidebar">
       <div class="logo-area">
         <el-icon :size="28" color="#818CF8"><Coin /></el-icon>
-        <span class="logo-text">财务系统</span>
+        <span class="logo-text">{{ brandStore.siteName }}</span>
       </div>
       <AppNavMenu :active-menu="activeMenu" @select="handleMenuSelect" />
     </el-aside>
@@ -66,7 +66,7 @@
       <el-footer v-show="!isMobile" height="48px" class="footer">
         <div class="footer-content">
           <div class="footer-left">
-            <span class="copyright">&copy; 2026 财务系统</span>
+            <span class="copyright">&copy; 2026 {{ brandStore.siteName }}</span>
             <span class="divider">|</span>
             <span class="version">v1.0.0</span>
           </div>
@@ -88,7 +88,7 @@
       <div class="sidebar mobile-sidebar">
         <div class="logo-area">
           <el-icon :size="28" color="#818CF8"><Coin /></el-icon>
-          <span class="logo-text">财务系统</span>
+          <span class="logo-text">{{ brandStore.siteName }}</span>
         </div>
         <AppNavMenu :active-menu="activeMenu" @select="handleMobileMenuSelect" />
       </div>
@@ -111,11 +111,13 @@ import {
 import { logout as logoutRequest } from '@/features/auth/api/auth'
 import { useBreakpoint } from '@/shared/composables/useBreakpoint'
 import { useUserStore } from '@/features/auth/stores/user'
+import { useSiteBrandStore } from '@/features/system/stores/siteBrand'
 import AppNavMenu from '@/shared/layouts/AppNavMenu.vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const brandStore = useSiteBrandStore()
 const { isMobile } = useBreakpoint()
 const drawerVisible = ref(false)
 
@@ -124,7 +126,7 @@ const activeMenu = computed(() => {
 })
 
 const currentPageTitle = computed(() => {
-  return (route.meta.title as string) || '财务系统'
+  return (route.meta.title as string) || brandStore.siteName
 })
 
 const handleMenuSelect = (index: string) => {
@@ -207,6 +209,9 @@ const handleCommand = async (command: string) => {
   color: var(--text-placeholder);
   white-space: nowrap;
   letter-spacing: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
 }
 
 .header {

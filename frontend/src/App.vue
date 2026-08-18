@@ -1,5 +1,13 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
+import { useSiteBrandStore } from '@/features/system/stores/siteBrand'
+
+const brandStore = useSiteBrandStore()
+
+onMounted(() => {
+  void brandStore.load()
+})
 </script>
 
 <template>

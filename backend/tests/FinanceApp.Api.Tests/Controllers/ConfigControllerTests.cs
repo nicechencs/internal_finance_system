@@ -12,14 +12,19 @@ namespace FinanceApp.Api.Tests.Controllers;
 public class ConfigControllerTests
 {
     private readonly Mock<IConfigService> _configServiceMock;
+    private readonly Mock<ISiteBrandService> _siteBrandServiceMock;
     private readonly Mock<ILogger<ConfigController>> _loggerMock;
     private readonly ConfigController _controller;
 
     public ConfigControllerTests()
     {
         _configServiceMock = new Mock<IConfigService>();
+        _siteBrandServiceMock = new Mock<ISiteBrandService>();
         _loggerMock = new Mock<ILogger<ConfigController>>();
-        _controller = new ConfigController(_configServiceMock.Object, _loggerMock.Object);
+        _controller = new ConfigController(
+            _configServiceMock.Object,
+            _siteBrandServiceMock.Object,
+            _loggerMock.Object);
     }
 
     [Fact]
@@ -181,5 +186,31 @@ public class ConfigControllerTests
         apiResponse.Message.Should().Be("配置更新成功");
 
         _configServiceMock.Verify(x => x.UpdateConfigAsync(configKey, ""), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateSiteBrand_ValidRequest_ReturnsUpdatedBrand()
+    {
+        var request = new UpdateSiteBrandRequest
+        {
+            SiteName = "自定义站点",
+            SiteNameEn = "Custom Brand"
+        };
+        _siteBrandServiceMock
+            .Setup(x => x.UpdateSiteBrandAsync(request))
+            .ReturnsAsync(new PublicBrandDto
+            {
+                SiteName = request.SiteName,
+                SiteNameEn = request.SiteNameEn
+            });
+
+        var result = await _controller.UpdateSiteBrand(request);
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PublicBrandDto>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Message.Should().Be("站点名称更新成功");
+        apiResponse.Data!.SiteName.Should().Be("自定义站点");
+        _siteBrandServiceMock.Verify(x => x.UpdateSiteBrandAsync(request), Times.Once);
     }
 }
