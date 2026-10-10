@@ -17,12 +17,16 @@ public class TagAnalyticsService : ServiceBase, ITagAnalyticsService
     private readonly IRepository<Tag> _tagRepository;
     private readonly IRepository<TagBinding> _tagBindingRepository;
     private readonly IRepository<Transaction> _transactionRepository;
+    private readonly IRepository<TagDailySummary> _tagDailySummaryRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TagAnalyticsService> _logger;
 
     public TagAnalyticsService(
         IRepository<Tag> tagRepository,
         IRepository<TagBinding> tagBindingRepository,
         IRepository<Transaction> transactionRepository,
+        IRepository<TagDailySummary> tagDailySummaryRepository,
+        IUnitOfWork unitOfWork,
         ILogger<TagAnalyticsService> logger,
         ICurrentUserService currentUserService,
         IDataPermissionService permissionService)
@@ -31,6 +35,8 @@ public class TagAnalyticsService : ServiceBase, ITagAnalyticsService
         _tagRepository = tagRepository;
         _tagBindingRepository = tagBindingRepository;
         _transactionRepository = transactionRepository;
+        _tagDailySummaryRepository = tagDailySummaryRepository;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -350,5 +356,222 @@ public class TagAnalyticsService : ServiceBase, ITagAnalyticsService
             _logger.LogError(ex, "获取标签交叉分析失败: RowScope={RowScope}, ColScope={ColScope}", rowScope, colScope);
             throw;
         }
+    }
+
+    public async Task<TagDailySummaryRebuildResult> RebuildDailySummariesAsync(DateTime date)
+    {
+        var summaryDate = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+        var endExclusive = summaryDate.AddDays(1);
+
+        _logger.LogInformation("重建标签每日汇总快照: SummaryDate={SummaryDate}", summaryDate);
+
+        var existing = await _tagDailySummaryRepository.GetQueryable()
+            .IgnoreQueryFilters()
+            .Where(s => s.SummaryDate >= summaryDate && s.SummaryDate < endExclusive)
+            .ToListAsync();
+
+        var nextVersion = existing.Count == 0 ? 1 : existing.Max(s => s.Version) + 1;
+
+        await using var dbTransaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            foreach (var row in existing.Where(s => !s.IsDeleted))
+            {
+                _tagDailySummaryRepository.Delete(row);
+            }
+
+            var aggregates = await AggregateDailySummariesAsync(summaryDate, endExclusive);
+            foreach (var row in aggregates)
+            {
+                row.Version = nextVersion;
+                await _tagDailySummaryRepository.AddAsync(row);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            if (dbTransaction != null)
+                await dbTransaction.CommitAsync();
+
+            _logger.LogInformation(
+                "标签每日汇总快照重建完成: SummaryDate={SummaryDate}, Rows={RowCount}, Version={Version}",
+                summaryDate, aggregates.Count, nextVersion);
+
+            return new TagDailySummaryRebuildResult
+            {
+                SummaryDate = summaryDate,
+                RowCount = aggregates.Count,
+                Version = nextVersion
+            };
+        }
+        catch (Exception ex)
+        {
+            if (dbTransaction != null)
+                await dbTransaction.RollbackAsync();
+            _logger.LogError(ex, "重建标签每日汇总快照失败: SummaryDate={SummaryDate}", summaryDate);
+            throw;
+        }
+    }
+
+    public async Task<List<TagDailySummaryDto>> GetDailySummariesAsync(DateTime from, DateTime to, long? tagId = null)
+    {
+        var start = DateTime.SpecifyKind(from.Date, DateTimeKind.Utc);
+        var endInclusive = DateTime.SpecifyKind(to.Date, DateTimeKind.Utc);
+        if (endInclusive < start)
+            throw new ValidationException("结束日期不能早于开始日期");
+
+        var endExclusive = endInclusive.AddDays(1);
+
+        var query = _tagDailySummaryRepository.GetQueryable()
+            .Include(s => s.Tag)
+            .Where(s => s.SummaryDate >= start && s.SummaryDate < endExclusive);
+
+        if (tagId.HasValue)
+            query = query.Where(s => s.TagId == tagId.Value);
+
+        var rows = await query
+            .OrderBy(s => s.SummaryDate)
+            .ThenBy(s => s.TagId)
+            .ThenBy(s => s.MetricScope)
+            .ToListAsync();
+
+        return rows.Select(s => new TagDailySummaryDto
+        {
+            Id = s.Id,
+            SummaryDate = s.SummaryDate,
+            TagId = s.TagId,
+            TagName = s.Tag?.Name ?? string.Empty,
+            TagColor = s.Tag?.Color,
+            MetricScope = s.MetricScope,
+            IncomeAmount = s.IncomeAmount,
+            ExpenseAmount = s.ExpenseAmount,
+            NetAmount = s.NetAmount,
+            TransactionCount = s.TransactionCount,
+            Version = s.Version
+        }).ToList();
+    }
+
+    /// <summary>
+    /// 按标签 + 作用域聚合某一 UTC 日的交易。
+    /// Transaction 作用域直接用标签绑定；其他作用域只计入已经能关联到交易的绑定。
+    /// 划转不计入收支。同一交易挂多个标签时分别计入各标签。
+    /// </summary>
+    private async Task<List<TagDailySummary>> AggregateDailySummariesAsync(DateTime summaryDate, DateTime endExclusive)
+    {
+        var transactions = await _transactionRepository.GetQueryable()
+            .Where(t => t.TransactionDate >= summaryDate && t.TransactionDate < endExclusive)
+            .Where(t => t.TransactionType != TransactionType.Transfer)
+            .Select(t => new DailyTx(
+                t.Id,
+                t.TransactionType,
+                t.Amount,
+                t.ProjectId,
+                t.PersonId,
+                t.CustomerId,
+                t.SupplierId))
+            .ToListAsync();
+
+        if (transactions.Count == 0)
+            return new List<TagDailySummary>();
+
+        var transactionIds = transactions.Select(t => t.Id).ToList();
+        var projectIds = transactions.Where(t => t.ProjectId.HasValue).Select(t => t.ProjectId!.Value).Distinct().ToList();
+        var personIds = transactions.Where(t => t.PersonId.HasValue).Select(t => t.PersonId!.Value).Distinct().ToList();
+        var customerIds = transactions.Where(t => t.CustomerId.HasValue).Select(t => t.CustomerId!.Value).Distinct().ToList();
+        var supplierIds = transactions.Where(t => t.SupplierId.HasValue).Select(t => t.SupplierId!.Value).Distinct().ToList();
+
+        var bindings = await _tagBindingRepository.GetQueryable()
+            .Where(b =>
+                (b.OwnerType == TagScope.Transaction && transactionIds.Contains(b.OwnerId))
+                || (b.OwnerType == TagScope.Project && projectIds.Contains(b.OwnerId))
+                || (b.OwnerType == TagScope.Person && personIds.Contains(b.OwnerId))
+                || (b.OwnerType == TagScope.Customer && customerIds.Contains(b.OwnerId))
+                || (b.OwnerType == TagScope.Supplier && supplierIds.Contains(b.OwnerId)))
+            .Select(b => new DailyBinding(b.TagId, b.OwnerType, b.OwnerId))
+            .ToListAsync();
+
+        var grouped = new Dictionary<(long TagId, TagScope Scope), DailyBucket>();
+
+        void Add(long tagId, TagScope scope, DailyTx tx)
+        {
+            var key = (tagId, scope);
+            if (!grouped.TryGetValue(key, out var bucket))
+            {
+                bucket = new DailyBucket();
+                grouped[key] = bucket;
+            }
+
+            if (!bucket.TransactionIds.Add(tx.Id))
+                return;
+
+            if (tx.TransactionType == TransactionType.Income)
+                bucket.Income += tx.Amount;
+            else if (tx.TransactionType == TransactionType.Expense)
+                bucket.Expense += tx.Amount;
+        }
+
+        var txById = transactions.ToDictionary(t => t.Id);
+        foreach (var binding in bindings.Where(b => b.OwnerType == TagScope.Transaction))
+        {
+            if (txById.TryGetValue(binding.OwnerId, out var tx))
+                Add(binding.TagId, TagScope.Transaction, tx);
+        }
+
+        AddByOwner(bindings, TagScope.Project, transactions.Where(t => t.ProjectId.HasValue), t => t.ProjectId!.Value, Add);
+        AddByOwner(bindings, TagScope.Person, transactions.Where(t => t.PersonId.HasValue), t => t.PersonId!.Value, Add);
+        AddByOwner(bindings, TagScope.Customer, transactions.Where(t => t.CustomerId.HasValue), t => t.CustomerId!.Value, Add);
+        AddByOwner(bindings, TagScope.Supplier, transactions.Where(t => t.SupplierId.HasValue), t => t.SupplierId!.Value, Add);
+
+        return grouped
+            .OrderBy(g => g.Key.TagId)
+            .ThenBy(g => g.Key.Scope)
+            .Select(g => new TagDailySummary
+            {
+                SummaryDate = summaryDate,
+                TagId = g.Key.TagId,
+                MetricScope = g.Key.Scope.ToString().ToLowerInvariant(),
+                IncomeAmount = g.Value.Income,
+                ExpenseAmount = g.Value.Expense,
+                NetAmount = g.Value.Income - g.Value.Expense,
+                TransactionCount = g.Value.TransactionIds.Count
+            })
+            .ToList();
+    }
+
+    private static void AddByOwner(
+        IEnumerable<DailyBinding> bindings,
+        TagScope scope,
+        IEnumerable<DailyTx> transactions,
+        Func<DailyTx, long> ownerId,
+        Action<long, TagScope, DailyTx> add)
+    {
+        var tagIdsByOwner = bindings
+            .Where(b => b.OwnerType == scope)
+            .GroupBy(b => b.OwnerId)
+            .ToDictionary(g => g.Key, g => g.Select(b => b.TagId).Distinct().ToList());
+
+        foreach (var tx in transactions)
+        {
+            if (!tagIdsByOwner.TryGetValue(ownerId(tx), out var tagIds))
+                continue;
+            foreach (var tagId in tagIds)
+                add(tagId, scope, tx);
+        }
+    }
+
+    private sealed record DailyBinding(long TagId, TagScope OwnerType, long OwnerId);
+
+    private sealed record DailyTx(
+        long Id,
+        TransactionType TransactionType,
+        decimal Amount,
+        long? ProjectId,
+        long? PersonId,
+        long? CustomerId,
+        long? SupplierId);
+
+    private sealed class DailyBucket
+    {
+        public decimal Income { get; set; }
+        public decimal Expense { get; set; }
+        public HashSet<long> TransactionIds { get; } = new();
     }
 }

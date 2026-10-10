@@ -1479,4 +1479,113 @@ public class LinkServiceTests : TestBase
     }
 
     #endregion
+
+    #region Account link — 不改余额敏感的 AccountId
+
+    [Fact]
+    public async Task PreviewLink_Account_ShouldNotAdvertiseConfirmableCandidates()
+    {
+        var account = new Account { Id = 2, Name = "招行账户", AccountNumber = "6225001234" };
+        _accountRepoMock.Setup(r => r.GetByIdAsync(2)).ReturnsAsync(account);
+
+        var bankTx = new BankTransaction
+        {
+            Id = 10,
+            Counterparty = "某公司",
+            CounterpartyAccount = "6225001234",
+            AccountId = 1
+        };
+        var transactions = new List<Transaction>
+        {
+            new()
+            {
+                Id = 100,
+                TransactionDate = DateTime.UtcNow,
+                Amount = 1000,
+                TransactionType = TransactionType.Income,
+                AccountId = 1,
+                BankTransactionId = 10,
+                BankTransaction = bankTx,
+                Account = new Account { Id = 1, Name = "主账户" }
+            }
+        };
+        _transactionRepoMock.Setup(r => r.GetQueryable()).Returns(transactions.AsQueryable().BuildMock().Object);
+
+        var result = await _service.PreviewLinkAsync(new LinkPreviewRequest
+        {
+            LinkType = LinkType.Account,
+            EntityId = 2
+        });
+
+        result.EntityName.Should().Be("招行账户");
+        result.TotalMatched.Should().Be(0);
+        result.Candidates.Should().BeEmpty();
+        transactions[0].AccountId.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PreviewLink_Account_MissingAccount_ShouldThrowNotFound()
+    {
+        _accountRepoMock.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Account?)null);
+
+        var act = () => _service.PreviewLinkAsync(new LinkPreviewRequest
+        {
+            LinkType = LinkType.Account,
+            EntityId = 99
+        });
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task ConfirmLink_Account_ShouldRejectReassignmentBecauseItChangesBalances()
+    {
+        var account = new Account { Id = 2, Name = "招行账户", AccountNumber = "6225001234", CurrentBalance = 500m };
+        _accountRepoMock.Setup(r => r.GetByIdAsync(2)).ReturnsAsync(account);
+
+        var transactions = new List<Transaction>
+        {
+            new() { Id = 100, TransactionDate = DateTime.UtcNow, Amount = 1000, AccountId = 1 }
+        };
+        _transactionRepoMock.Setup(r => r.GetQueryable()).Returns(transactions.AsQueryable().BuildMock().Object);
+
+        var act = () => _service.ConfirmLinkAsync(new LinkConfirmRequest
+        {
+            LinkType = LinkType.Account,
+            EntityId = 2,
+            TransactionIds = new List<long> { 100 }
+        });
+
+        var error = await act.Should().ThrowAsync<ValidationException>();
+        error.Which.Message.Should().Contain("余额");
+        transactions[0].AccountId.Should().Be(1);
+        account.CurrentBalance.Should().Be(500m);
+        _transactionRepoMock.Verify(r => r.Update(It.IsAny<Transaction>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ConfirmLink_Account_AlreadyOnThisAccount_ShouldLinkNothing()
+    {
+        var account = new Account { Id = 2, Name = "招行账户", CurrentBalance = 500m };
+        _accountRepoMock.Setup(r => r.GetByIdAsync(2)).ReturnsAsync(account);
+
+        var transactions = new List<Transaction>
+        {
+            new() { Id = 100, TransactionDate = DateTime.UtcNow, Amount = 1000, AccountId = 2 }
+        };
+        _transactionRepoMock.Setup(r => r.GetQueryable()).Returns(transactions.AsQueryable().BuildMock().Object);
+
+        var result = await _service.ConfirmLinkAsync(new LinkConfirmRequest
+        {
+            LinkType = LinkType.Account,
+            EntityId = 2,
+            TransactionIds = new List<long> { 100 }
+        });
+
+        result.LinkedCount.Should().Be(0);
+        transactions[0].AccountId.Should().Be(2);
+        _transactionRepoMock.Verify(r => r.Update(It.IsAny<Transaction>()), Times.Never);
+    }
+
+    #endregion
 }

@@ -153,6 +153,58 @@
         </el-table>
       </div>
     </el-card>
+
+    <el-card class="snapshot-card">
+      <template #header><span>每日汇总快照</span></template>
+      <div class="filter-row">
+        <el-date-picker
+          v-model="snapshotRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          value-format="YYYY-MM-DD"
+          style="width: 260px"
+        />
+        <el-button type="primary" :loading="snapshotLoading" @click="loadSnapshots">查询</el-button>
+        <template v-if="userStore.isAdmin">
+          <el-date-picker
+            v-model="rebuildDate"
+            type="date"
+            placeholder="重建日期"
+            value-format="YYYY-MM-DD"
+            style="width: 160px"
+          />
+          <el-button type="warning" :loading="rebuildLoading" @click="rebuildSnapshots">重建</el-button>
+        </template>
+      </div>
+      <el-table v-if="snapshots.length > 0" :data="snapshots" stripe size="small" style="margin-top: 16px">
+        <el-table-column label="日期" width="120">
+          <template #default="{ row }">{{ formatDate(row.summaryDate) }}</template>
+        </el-table-column>
+        <el-table-column label="标签" min-width="120">
+          <template #default="{ row }">
+            <span v-if="row.tagColor" class="color-dot" :style="{ backgroundColor: row.tagColor }" />
+            {{ row.tagName }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="metricScope" label="作用域" width="110" />
+        <el-table-column prop="transactionCount" label="笔数" width="80" align="center" />
+        <el-table-column label="收入" width="120" align="right">
+          <template #default="{ row }"><span class="income">{{ formatAmount(row.incomeAmount) }}</span></template>
+        </el-table-column>
+        <el-table-column label="支出" width="120" align="right">
+          <template #default="{ row }"><span class="expense">{{ formatAmount(row.expenseAmount) }}</span></template>
+        </el-table-column>
+        <el-table-column label="净额" width="120" align="right">
+          <template #default="{ row }">
+            <span :class="row.netAmount >= 0 ? 'income' : 'expense'">{{ formatAmount(row.netAmount) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="version" label="版本" width="70" align="center" />
+      </el-table>
+      <el-empty v-else-if="snapshotQueried" description="该日期范围暂无快照" />
+    </el-card>
   </div>
 </template>
 
@@ -166,12 +218,14 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { getTagSummary, getTagCrossAnalysis } from '../api/tag'
-import type { TagSummaryDto, TagCrossAnalysisDto, TagCrossAnalysisCellDto } from '../types/tag'
+import { getTagSummary, getTagCrossAnalysis, getTagDailySummaries, rebuildTagDailySummaries } from '../api/tag'
+import type { TagSummaryDto, TagCrossAnalysisDto, TagCrossAnalysisCellDto, TagDailySummaryDto } from '../types/tag'
+import { useUserStore } from '@/features/auth/stores/user'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, LegendComponent])
 
 const router = useRouter()
+const userStore = useUserStore()
 
 const handleTagRowClick = (row: { tagId: number }) => {
   router.push({ name: 'Transactions', query: { tagId: String(row.tagId) } })
@@ -314,6 +368,54 @@ const resetCross = () => {
 }
 
 // ── 工具函数 ──
+const snapshotRange = ref<string[]>([])
+const snapshotLoading = ref(false)
+const snapshotQueried = ref(false)
+const snapshots = ref<TagDailySummaryDto[]>([])
+const rebuildDate = ref('')
+const rebuildLoading = ref(false)
+
+const loadSnapshots = async () => {
+  if (snapshotRange.value?.length !== 2) {
+    ElMessage.warning('请选择快照日期范围')
+    return
+  }
+  snapshotLoading.value = true
+  try {
+    const res = await getTagDailySummaries({
+      from: snapshotRange.value[0],
+      to: snapshotRange.value[1]
+    })
+    snapshots.value = res.data.data ?? []
+    snapshotQueried.value = true
+  } catch {
+    // 请求拦截器已自动弹出后端错误消息
+  } finally {
+    snapshotLoading.value = false
+  }
+}
+
+const rebuildSnapshots = async () => {
+  if (!rebuildDate.value) {
+    ElMessage.warning('请选择要重建的日期')
+    return
+  }
+  rebuildLoading.value = true
+  try {
+    const res = await rebuildTagDailySummaries(rebuildDate.value)
+    const rebuilt = res.data.data
+    ElMessage.success(`已重建 ${rebuilt?.rowCount ?? 0} 条快照（版本 ${rebuilt?.version ?? '-'}）`)
+    snapshotRange.value = [rebuildDate.value, rebuildDate.value]
+    await loadSnapshots()
+  } catch {
+    // 请求拦截器已自动弹出后端错误消息
+  } finally {
+    rebuildLoading.value = false
+  }
+}
+
+const formatDate = (value: string) => (value ? value.slice(0, 10) : '')
+
 const formatAmount = (val: number) => {
   if (val === 0) return '¥0'
   const abs = Math.abs(val)

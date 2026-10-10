@@ -381,33 +381,14 @@ public class LinkService : ServiceBase, ILinkService
         var account = await _accountRepository.GetByIdAsync(accountId)
             ?? throw new NotFoundException($"账户不存在: {accountId}");
 
-        // 账户关联较少见：查找银行流水对方账号匹配但交易未关联到此账户的情况
-        // 这里主要用于修正错误关联，场景有限
-        var candidates = new List<LinkCandidateDto>();
+        // 交易归属账户是余额敏感字段：改 AccountId 必须同步挪动账户余额。
+        // 这里没有独立于 AccountId 的安全外键可写，不能把对方账号匹配结果当成可确认候选，
+        // 否则预览会提供一个确认时必然失败的操作。
+        _logger.LogInformation(
+            "[LinkService.PreviewAccountLink] 账户 {AccountId} 不返回可确认候选：归属账户变更会影响余额",
+            account.Id);
 
-        if (!string.IsNullOrWhiteSpace(account.AccountNumber))
-        {
-            var query = ApplyPermissionFilter(_transactionRepository.GetQueryable())
-                .Where(t => t.BankTransactionId != null);
-
-            var transactions = await query
-                .Include(t => t.BankTransaction)
-                .Include(t => t.Account)
-                .Include(t => t.Category)
-                .Where(t => t.BankTransaction != null
-                    && t.BankTransaction.CounterpartyAccount != null
-                    && t.BankTransaction.CounterpartyAccount.Contains(account.AccountNumber))
-                .OrderByDescending(t => t.TransactionDate)
-                .Take(200)
-                .ToListAsync();
-
-            foreach (var tx in transactions)
-            {
-                candidates.Add(MapToCandidate(tx, $"对方账号匹配\"{account.AccountNumber}\""));
-            }
-        }
-
-        return (account.Name, candidates);
+        return (account.Name, new List<LinkCandidateDto>());
     }
 
     #endregion
@@ -487,10 +468,26 @@ public class LinkService : ServiceBase, ILinkService
         });
     }
 
-    private Task<int> ConfirmAccountLinkAsync(long accountId, List<long> transactionIds)
+    private async Task<int> ConfirmAccountLinkAsync(long accountId, List<long> transactionIds)
     {
-        // 账户关联功能尚未实现，明确拒绝请求
-        throw new InvalidOperationException("账户关联功能暂不支持，请使用其他关联方式");
+        var account = await _accountRepository.GetByIdAsync(accountId)
+            ?? throw new NotFoundException($"账户不存在: {accountId}");
+
+        var requested = await _transactionRepository.GetQueryable()
+            .Where(t => transactionIds.Contains(t.Id))
+            .Select(t => new { t.Id, t.AccountId })
+            .ToListAsync();
+
+        if (requested.Count == 0)
+            return 0;
+
+        if (requested.All(t => t.AccountId == account.Id))
+            return 0;
+
+        // Transaction.AccountId 是余额敏感字段。一键关联没有独立的安全外键，
+        // 直接改归属账户会让两边 CurrentBalance 与流水脱节，因此明确拒绝。
+        throw new ValidationException(
+            "账户关联确认不支持：交易归属账户会影响账户余额，不能在不调整余额的情况下改派账户。请通过交易编辑完成账户变更。");
     }
 
     #endregion

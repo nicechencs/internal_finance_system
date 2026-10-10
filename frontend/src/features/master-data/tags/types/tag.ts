@@ -108,6 +108,26 @@ export interface TagCrossAnalysisCellDto {
   netAmount: number
 }
 
+export interface TagDailySummaryDto {
+  id: number
+  summaryDate: string
+  tagId: number
+  tagName: string
+  tagColor?: string
+  metricScope: string
+  incomeAmount: number
+  expenseAmount: number
+  netAmount: number
+  transactionCount: number
+  version: number
+}
+
+export interface TagDailySummaryRebuildResult {
+  summaryDate: string
+  rowCount: number
+  version: number
+}
+
 export interface TagCrossAnalysisDto {
   rowScope: string
   colScope: string
