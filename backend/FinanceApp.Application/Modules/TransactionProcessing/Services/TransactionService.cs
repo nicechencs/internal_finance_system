@@ -412,6 +412,7 @@ public class TransactionService : ServiceBase, ITransactionService
                 AccountId = request.AccountId,
                 CategoryId = request.CategoryId,
                 Description = request.Description,
+                VoucherNo = VoucherNoNormalizer.Normalize(request.VoucherNo),
                 Status = TransactionStatus.Confirmed,
                 IsAllocated = hasAllocations
             };
@@ -601,6 +602,7 @@ public class TransactionService : ServiceBase, ITransactionService
             transaction.AccountId = request.AccountId;
             transaction.CategoryId = request.CategoryId;
             transaction.Description = request.Description;
+            transaction.VoucherNo = VoucherNoNormalizer.Normalize(request.VoucherNo);
 
             // 删除旧的分摊记录
             foreach (var oldAllocation in transaction.Allocations.ToList())
@@ -861,6 +863,7 @@ public class TransactionService : ServiceBase, ITransactionService
                     TransferDirection = targetDirection,
                     AccountId = targetAccount.Id,
                     Description = BuildTransferDescription(request.Description, sourceTransaction.Account, targetDirection),
+                    VoucherNo = sourceTransaction.VoucherNo,
                     Status = TransactionStatus.Confirmed,
                     IsAllocated = false,
                     RelatedTransactionId = sourceTransaction.Id

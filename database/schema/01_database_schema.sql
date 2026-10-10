@@ -292,6 +292,7 @@ CREATE TABLE transactions (
     supplier_id BIGINT,
     person_id BIGINT,
     description TEXT,
+    voucher_no VARCHAR(64),
     status VARCHAR(20) NOT NULL DEFAULT 'confirmed', -- pending, confirmed, cancelled
     is_allocated BOOLEAN NOT NULL DEFAULT false,
     created_by BIGINT,
@@ -323,6 +324,7 @@ CREATE INDEX idx_transactions_related ON transactions(related_transaction_id) WH
 COMMENT ON TABLE transactions IS '交易表（核心）';
 COMMENT ON COLUMN transactions.transaction_type IS '交易类型：income-收入, expense-支出, transfer-转账';
 COMMENT ON COLUMN transactions.related_transaction_id IS '关联交易ID（转账时关联配对记录）';
+COMMENT ON COLUMN transactions.voucher_no IS '会计凭证号，可空，用于追溯线下凭证';
 
 -- 4.4 交易分摊表
 -- 支持按项目分摊（如一笔外包费分摊到多个项目）和按人员分摊（如一笔个税分摊到多个员工）

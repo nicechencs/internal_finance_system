@@ -54,6 +54,10 @@ public class HuaxiaBankParser : IFileParser
         if (headerRow < 0)
             throw new Common.ValidationException("无法识别华夏银行文件格式：未找到包含'序号'和'交易日期'的表头行");
 
+        var voucherColumn = ImportColumnAliases.FindColumn(
+            ExcelHeaderLookup.FromRow(col => worksheet.Cells[headerRow, col].GetValue<string>(), dimension.Columns),
+            ImportColumnAliases.VoucherNo);
+
         _logger.LogInformation("华夏银行文件表头行: {HeaderRow}", headerRow);
 
         int dataStartRow = headerRow + 1;
@@ -128,6 +132,15 @@ public class HuaxiaBankParser : IFileParser
                 // 交易描述 (col11) 和 摘要 (col12) 分别保存
                 var txDesc = worksheet.Cells[row, 11].GetValue<string>()?.Trim() ?? string.Empty;
                 var memo = worksheet.Cells[row, 12].GetValue<string>()?.Trim() ?? string.Empty;
+                string? voucherNo = null;
+                if (voucherColumn.HasValue)
+                {
+                    voucherNo = worksheet.Cells[row, voucherColumn.Value].GetValue<string>()?.Trim();
+                    if (string.IsNullOrWhiteSpace(voucherNo))
+                    {
+                        voucherNo = null;
+                    }
+                }
 
                 rows.Add(new ParsedBankRow
                 {
@@ -141,6 +154,7 @@ public class HuaxiaBankParser : IFileParser
                     CounterpartyBank = string.IsNullOrWhiteSpace(counterpartyBank) ? null : counterpartyBank,
                     TransactionNumber = string.IsNullOrWhiteSpace(transactionNumber) ? null : transactionNumber,
                     Description = txDesc,
+                    VoucherNo = voucherNo,
                     ExtendedInfo = string.IsNullOrWhiteSpace(memo) ? null : memo
                 });
             }

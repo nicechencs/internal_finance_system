@@ -16,6 +16,8 @@ public class Transaction : BaseEntity
     public long? SupplierId { get; set; }
     public long? PersonId { get; set; }
     public string? Description { get; set; }
+    /// <summary>会计凭证号，可空，用于追溯线下凭证。</summary>
+    public string? VoucherNo { get; set; }
     public TransactionStatus Status { get; set; } = TransactionStatus.Confirmed;
     public bool IsAllocated { get; set; }
     public AllocationStatus AllocationStatus { get; set; } = AllocationStatus.Unallocated;

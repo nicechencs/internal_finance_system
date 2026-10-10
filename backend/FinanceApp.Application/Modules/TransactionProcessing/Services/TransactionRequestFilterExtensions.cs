@@ -87,6 +87,13 @@ internal static class TransactionRequestFilterExtensions
             LogFilter(logger, logAppliedFilters, "Applied exclude transfer filter: {ExcludeTransfer}", true);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.VoucherNo))
+        {
+            var voucherNo = request.VoucherNo.Trim();
+            query = query.Where(t => t.VoucherNo != null && t.VoucherNo.Contains(voucherNo));
+            LogFilter(logger, logAppliedFilters, "Applied voucher no filter: {VoucherNo}", voucherNo);
+        }
+
         return query;
     }
 

@@ -56,6 +56,39 @@ public class SimpleFileParserTests
         rows[1].Amount.Should().Be(1200.50m);
         rows[1].Direction.Should().Be("out");
         rows[1].CounterpartyAccount.Should().BeNull();
+        rows[0].VoucherNo.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_OptionalVoucherColumn_MapsAliasAndLeavesBlankAsNull()
+    {
+        var stream = CreateSimpleExcel(ws =>
+        {
+            ws.Cells[1, 1].Value = "日期";
+            ws.Cells[1, 2].Value = "金额";
+            ws.Cells[1, 3].Value = "对方";
+            ws.Cells[1, 4].Value = "摘要";
+            ws.Cells[1, 6].Value = "凭证号码";
+
+            ws.Cells[2, 1].Value = "2025-07-01";
+            ws.Cells[2, 2].Value = 100m;
+            ws.Cells[2, 3].Value = "客户A";
+            ws.Cells[2, 4].Value = "收入";
+            ws.Cells[2, 6].Value = "  PZ-18  ";
+
+            ws.Cells[3, 1].Value = "2025-07-02";
+            ws.Cells[3, 2].Value = -50m;
+            ws.Cells[3, 3].Value = "供应商B";
+            ws.Cells[3, 4].Value = "支出";
+            ws.Cells[3, 6].Value = "   ";
+        });
+
+        var rows = _parser.Parse(stream);
+
+        rows.Should().HaveCount(2);
+        rows[0].VoucherNo.Should().Be("PZ-18");
+        rows[0].Description.Should().Be("收入");
+        rows[1].VoucherNo.Should().BeNull();
     }
 
     [Fact]

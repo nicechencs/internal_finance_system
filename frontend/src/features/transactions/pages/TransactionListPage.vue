@@ -99,6 +99,15 @@
             :shortcuts="dateRangeShortcuts"
           />
         </el-form-item>
+        <el-form-item label="凭证号">
+          <el-input
+            v-model="filters.voucherNo"
+            placeholder="凭证号包含"
+            clearable
+            style="width: 180px"
+            @keyup.enter="handleFilter"
+          />
+        </el-form-item>
         <el-form-item label="标签">
           <TagSelector
             :model-value="filters.tagIds"
@@ -150,6 +159,12 @@
           <el-table-column prop="transactionNumber" label="流水号" :width="getColumnWidth('transactionNumber', 160)" show-overflow-tooltip>
             <template #default="{ row }">
               {{ row.transactionNumber || '-' }}
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="voucherNo" label="凭证号" :width="getColumnWidth('voucherNo', 140)" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.voucherNo || '-' }}
             </template>
           </el-table-column>
 
@@ -426,7 +441,8 @@ const filters = reactive({
   categoryId: null as number | null,
   projectId: null as number | null,
   dateRange: null as [Date, Date] | null,
-  tagIds: [] as number[]
+  tagIds: [] as number[],
+  voucherNo: ''
 })
 
 const headerActions = computed(() => {
@@ -444,6 +460,7 @@ const activeFilterCount = computed(() => {
   if (filters.projectId) count++
   if (filters.dateRange) count++
   if (filters.tagIds.length) count++
+  if (filters.voucherNo.trim()) count++
   return count
 })
 
@@ -473,6 +490,8 @@ const applyRouteFilters = () => {
   filters.projectId = parseNumberQuery(route.query.projectId)
   const tagId = parseNumberQuery(route.query.tagId)
   filters.tagIds = tagId ? [tagId] : []
+  const voucherNo = route.query.voucherNo
+  filters.voucherNo = typeof voucherNo === 'string' ? voucherNo : Array.isArray(voucherNo) ? (voucherNo[0] ?? '') : ''
 }
 
 const buildFilterParams = (): Partial<PageRequest> => {
@@ -490,6 +509,9 @@ const buildFilterParams = (): Partial<PageRequest> => {
   }
   if (filters.tagIds.length > 0) {
     params.tagFilters = [{ scope: 'transaction', tagIds: filters.tagIds, matchMode: 'or' }]
+  }
+  if (filters.voucherNo.trim()) {
+    params.voucherNo = filters.voucherNo.trim()
   }
 
   return params
@@ -607,6 +629,7 @@ const handleReset = async () => {
   filters.projectId = null
   filters.dateRange = null
   filters.tagIds = []
+  filters.voucherNo = ''
   activeTab.value = 'all'
   await router.replace({ name: 'Transactions' })
   handleFilter()

@@ -17,6 +17,7 @@ export interface PageRequest {
   minAmount?: number
   maxAmount?: number
   excludeTransfer?: boolean
+  voucherNo?: string
 }
 
 export interface PageResponse<T> {

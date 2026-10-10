@@ -104,6 +104,7 @@ public static class MappingConfig
                 SupplierId = src.SupplierId,
                 PersonId = src.PersonId,
                 Description = src.Description,
+                VoucherNo = src.VoucherNo,
                 Status = src.Status.ToString(),
                 IsAllocated = src.IsAllocated,
                 RelatedTransactionId = src.RelatedTransactionId,

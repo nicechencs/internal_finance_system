@@ -13,6 +13,8 @@ public class BankTransactionPreviewDto
     public string? CounterpartyBank { get; set; }
     public string? TransactionNumber { get; set; }
     public string? Description { get; set; }
+    /// <summary>可选会计凭证号</summary>
+    public string? VoucherNo { get; set; }
     /// <summary>支付宝等特有字段 JSON 或备注</summary>
     public string? Memo { get; set; }
     public string UniqueHash { get; set; } = string.Empty;

@@ -90,6 +90,8 @@ public static class ValidationConstants
     {
         /// <summary>描述最大长度</summary>
         public const int DescriptionMaxLength = 500;
+        /// <summary>凭证号最大长度</summary>
+        public const int VoucherNoMaxLength = 64;
         /// <summary>最小交易金额</summary>
         public const decimal MinAmount = 0.01m;
         /// <summary>最大交易金额</summary>

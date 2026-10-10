@@ -34,6 +34,9 @@ public class PageRequest
     /// <summary>按交易金额上限筛选。</summary>
     public decimal? MaxAmount { get; set; }
 
+    /// <summary>按凭证号包含匹配（忽略大小写）。空值不筛选。</summary>
+    public string? VoucherNo { get; set; }
+
     /// <summary>
     /// 为 true 时排除转账。待分配核销列表应显式传入，避免共享过滤隐式丢数据。
     /// </summary>

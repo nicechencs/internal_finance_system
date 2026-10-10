@@ -13,6 +13,8 @@ public class ParsedBankRow
     public string? CounterpartyBank { get; set; }
     public string? TransactionNumber { get; set; }
     public string? Description { get; set; }
+    /// <summary>可选会计凭证号。源文件没有对应列时保持 null。</summary>
+    public string? VoucherNo { get; set; }
     /// <summary>支付宝等特有字段，序列化为 JSON</summary>
     public string? ExtendedInfo { get; set; }
 }

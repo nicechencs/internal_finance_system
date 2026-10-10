@@ -23,6 +23,7 @@ export interface Transaction {
   counterpartyBank?: string
   transactionNumber?: string
   description?: string
+  voucherNo?: string
   memo?: string
   status: string
   isAllocated: boolean
@@ -63,6 +64,7 @@ export interface CreateTransactionRequest {
   supplierId?: number
   personId?: number
   description?: string
+  voucherNo?: string
   allocations?: CreateAllocationRequest[]
 }
 
@@ -85,6 +87,7 @@ export interface UpdateTransactionRequest {
   supplierId?: number
   personId?: number
   description?: string
+  voucherNo?: string
   allocations?: CreateAllocationRequest[]
 }
 

@@ -90,6 +90,9 @@
           entity-name="人员"
         />
       </el-form-item>
+      <el-form-item label="凭证号" prop="voucherNo">
+        <el-input v-model="form.voucherNo" maxlength="64" show-word-limit placeholder="选填，用于追溯会计凭证" clearable />
+      </el-form-item>
       <el-form-item label="描述" prop="description">
         <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
       </el-form-item>
@@ -200,6 +203,7 @@ const form = reactive({
   supplierId: undefined as number | undefined,
   personId: undefined as number | undefined,
   description: '',
+  voucherNo: '',
   allocations: [] as AllocationForm[]
 })
 
@@ -241,6 +245,7 @@ const resetCreateForm = (draft?: Partial<CreateTransactionRequest> | null) => {
     supplierId: draft?.supplierId,
     personId: draft?.personId,
     description: draft?.description ?? '',
+    voucherNo: draft?.voucherNo ?? '',
     allocations: mapDraftAllocations(draft?.allocations)
   })
 }
@@ -362,6 +367,7 @@ watch(() => props.visible, async (val) => {
         supplierId: t.supplierId,
         personId: t.personId,
         description: t.description,
+        voucherNo: t.voucherNo ?? '',
         allocations: t.allocations.map(a => ({
           projectId: a.projectId,
           personId: a.personId,
@@ -385,6 +391,7 @@ watch(() => props.visible, async (val) => {
         supplierId: props.draft?.supplierId,
         personId: props.draft?.personId,
         description: props.draft?.description ?? '',
+        voucherNo: props.draft?.voucherNo ?? '',
         allocations: mapDraftAllocations(props.draft?.allocations)
       })
       formRef.value?.clearValidate()
@@ -441,6 +448,7 @@ const handleSubmit = async () => {
         supplierId: form.counterpartyType === 'supplier' ? form.supplierId : undefined,
         personId: form.counterpartyType === 'person' ? form.personId : undefined,
         description: form.description,
+        voucherNo: form.voucherNo?.trim() ? form.voucherNo.trim() : undefined,
         allocations
       }
       if (isEdit.value) {
