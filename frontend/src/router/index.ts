@@ -9,6 +9,7 @@ import { transactionRoutes } from '@/features/transactions/routes'
 import { financeRoutes } from '@/features/finance/routes'
 import { importRoutes } from '@/features/import/routes'
 import { reconciliationRoutes } from '@/features/reconciliation/routes'
+import { reportingRoutes } from '@/features/reporting/routes'
 import { systemRoutes } from '@/features/system/routes'
 
 const router = createRouter({
@@ -24,6 +25,7 @@ const router = createRouter({
         ...transactionRoutes,
         ...financeRoutes,
         ...importRoutes,
+        ...reportingRoutes,
         ...masterDataRoutes,
         ...reconciliationRoutes,
         ...systemRoutes,
