@@ -177,6 +177,36 @@ CREATE INDEX idx_persons_active ON persons(is_active) WHERE is_deleted = false;
 COMMENT ON TABLE persons IS '人员表';
 COMMENT ON COLUMN persons.person_type IS '人员类型：employee-员工, partner-合伙人, shareholder-股东, contractor-外包';
 
+-- 3.4.1 人员交付 / 验收记录
+CREATE TABLE person_deliveries (
+    id BIGSERIAL PRIMARY KEY,
+    person_id BIGINT NOT NULL,
+    project_id BIGINT,
+    title VARCHAR(200) NOT NULL,
+    description VARCHAR(1000),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    accepted_at TIMESTAMP,
+    accepted_by VARCHAR(100),
+    notes VARCHAR(1000),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    created_by BIGINT,
+    FOREIGN KEY (person_id) REFERENCES persons(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE INDEX idx_person_deliveries_person_id ON person_deliveries(person_id) WHERE is_deleted = false;
+CREATE INDEX idx_person_deliveries_project_id ON person_deliveries(project_id) WHERE is_deleted = false;
+CREATE INDEX idx_person_deliveries_status ON person_deliveries(status) WHERE is_deleted = false;
+CREATE INDEX idx_person_deliveries_created_by ON person_deliveries(created_by) WHERE is_deleted = false;
+
+COMMENT ON TABLE person_deliveries IS '人员交付与验收记录';
+COMMENT ON COLUMN person_deliveries.status IS '验收状态：pending-待验收, accepted-已验收, rejected-已驳回';
+COMMENT ON COLUMN person_deliveries.accepted_by IS '验收人用户名快照，不关联用户表';
+
 -- 3.5 项目表
 CREATE TABLE projects (
     id BIGSERIAL PRIMARY KEY,
@@ -699,6 +729,9 @@ CREATE TRIGGER update_suppliers_updated_at BEFORE UPDATE ON suppliers
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_persons_updated_at BEFORE UPDATE ON persons
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_person_deliveries_updated_at BEFORE UPDATE ON person_deliveries
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects

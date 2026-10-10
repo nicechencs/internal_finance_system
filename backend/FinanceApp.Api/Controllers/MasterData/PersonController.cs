@@ -14,11 +14,16 @@ namespace FinanceApp.Api.Controllers.MasterData;
 public class PersonController : CrudControllerBase<PersonDto, CreatePersonRequest, UpdatePersonRequest>
 {
     private readonly IPersonService _personService;
+    private readonly IPersonDeliveryService _personDeliveryService;
 
-    public PersonController(IPersonService personService, ILogger<PersonController> logger)
+    public PersonController(
+        IPersonService personService,
+        IPersonDeliveryService personDeliveryService,
+        ILogger<PersonController> logger)
         : base(personService, logger)
     {
         _personService = personService;
+        _personDeliveryService = personDeliveryService;
     }
 
     protected override string ControllerName => "PersonController";
@@ -149,5 +154,49 @@ public class PersonController : CrudControllerBase<PersonDto, CreatePersonReques
 
             return Ok(ApiResponse<BatchCreateResponse<PersonDto>>.SuccessResponse(result, $"成功导入{result.SuccessCount}条，失败{result.FailedCount}条"));
         }
+    }
+
+    /// <summary>
+    /// 人员交付 / 验收记录。写操作限 Admin、Accountant；删除限 Admin。
+    /// </summary>
+    [HttpGet("{personId:long}/deliveries")]
+    [Authorize(Roles = "Admin,Accountant,Viewer")]
+    public async Task<ActionResult<ApiResponse<List<PersonDeliveryDto>>>> GetDeliveries(long personId)
+    {
+        Logger.LogInformation("[PersonController.GetDeliveries] PersonId={PersonId}", personId);
+        var result = await _personDeliveryService.GetByPersonAsync(personId);
+        return Ok(ApiResponse<List<PersonDeliveryDto>>.SuccessResponse(result));
+    }
+
+    [HttpPost("{personId:long}/deliveries")]
+    [Authorize(Roles = "Admin,Accountant")]
+    public async Task<ActionResult<ApiResponse<PersonDeliveryDto>>> CreateDelivery(
+        long personId,
+        [FromBody] CreatePersonDeliveryRequest request)
+    {
+        Logger.LogInformation("[PersonController.CreateDelivery] PersonId={PersonId}", personId);
+        var result = await _personDeliveryService.CreateAsync(personId, request);
+        return StatusCode(201, ApiResponse<PersonDeliveryDto>.CreatedResponse(result, "交付记录创建成功"));
+    }
+
+    [HttpPut("{personId:long}/deliveries/{id:long}")]
+    [Authorize(Roles = "Admin,Accountant")]
+    public async Task<ActionResult<ApiResponse<PersonDeliveryDto>>> UpdateDelivery(
+        long personId,
+        long id,
+        [FromBody] UpdatePersonDeliveryRequest request)
+    {
+        Logger.LogInformation("[PersonController.UpdateDelivery] PersonId={PersonId}, DeliveryId={DeliveryId}", personId, id);
+        var result = await _personDeliveryService.UpdateAsync(personId, id, request);
+        return Ok(ApiResponse<PersonDeliveryDto>.SuccessResponse(result, "交付记录更新成功"));
+    }
+
+    [HttpDelete("{personId:long}/deliveries/{id:long}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteDelivery(long personId, long id)
+    {
+        Logger.LogInformation("[PersonController.DeleteDelivery] PersonId={PersonId}, DeliveryId={DeliveryId}", personId, id);
+        await _personDeliveryService.DeleteAsync(personId, id);
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "交付记录删除成功"));
     }
 }

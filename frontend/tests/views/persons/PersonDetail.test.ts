@@ -224,6 +224,37 @@ describe('PersonDetail.vue', () => {
     expect(ElMessage.error).toHaveBeenCalledWith('加载交易记录失败')
   })
 
+  it('切换到交付验收时应加载并显示交付记录', async () => {
+    vi.spyOn(personApi, 'getPersonDeliveries').mockResolvedValue(
+      mockAxiosResponse({
+        data: [
+          {
+            id: 8,
+            personId: 1,
+            personName: '张三',
+            title: '阶段交付包',
+            status: 'Pending',
+            createdAt: '2023-07-01T00:00:00Z',
+            updatedAt: '2023-07-01T00:00:00Z'
+          }
+        ]
+      }) as any
+    )
+
+    const wrapper = mountWithPlugins(PersonDetail)
+    await flushPromises()
+
+    expect(personApi.getPersonDeliveries).not.toHaveBeenCalled()
+    const tab = wrapper.findAll('.el-tabs__item').find(item => item.text().includes('交付验收'))
+    expect(tab).toBeTruthy()
+    await tab!.trigger('click')
+    await flushPromises()
+
+    expect(personApi.getPersonDeliveries).toHaveBeenCalledWith(1)
+    expect(wrapper.text()).toContain('阶段交付包')
+    expect(wrapper.text()).toContain('待验收')
+  })
+
   it('should display transaction tags in the record table', async () => {
     const wrapper = mountWithPlugins(PersonDetail)
     await flushPromises()

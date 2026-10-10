@@ -1,7 +1,7 @@
 import { createCrudApi } from '@/shared/api/base/crudFactory'
 import request from '@/shared/utils/request'
 import type { ApiResponse } from '@/shared/utils/request'
-import type { Person, PersonStatistics, PersonFinanceSummary, CreatePersonRequest, UpdatePersonRequest } from '@/features/master-data/persons/types/person'
+import type { Person, PersonStatistics, PersonFinanceSummary, PersonDelivery, PersonDeliveryRequest, CreatePersonRequest, UpdatePersonRequest } from '@/features/master-data/persons/types/person'
 
 const api = createCrudApi<Person, CreatePersonRequest, UpdatePersonRequest>({
   baseUrl: '/persons',
@@ -26,3 +26,15 @@ export const getPersonFinanceSummary = (id: number) =>
 
 export const getPersonStatistics = (params?: Record<string, any>) =>
   request<ApiResponse<PersonStatistics>>({ url: '/persons/statistics', method: 'get', params })
+
+export const getPersonDeliveries = (personId: number) =>
+  request<ApiResponse<PersonDelivery[]>>({ url: `/persons/${personId}/deliveries`, method: 'get' })
+
+export const createPersonDelivery = (personId: number, data: PersonDeliveryRequest) =>
+  request<ApiResponse<PersonDelivery>>({ url: `/persons/${personId}/deliveries`, method: 'post', data })
+
+export const updatePersonDelivery = (personId: number, id: number, data: PersonDeliveryRequest) =>
+  request<ApiResponse<PersonDelivery>>({ url: `/persons/${personId}/deliveries/${id}`, method: 'put', data })
+
+export const deletePersonDelivery = (personId: number, id: number) =>
+  request<ApiResponse<void>>({ url: `/persons/${personId}/deliveries/${id}`, method: 'delete' })

@@ -138,6 +138,66 @@
           <el-tab-pane label="应付记录" name="payables">
             <PayableRecordsTable :records="payables" :loading="payablesLoading" />
           </el-tab-pane>
+          <el-tab-pane label="交付验收" name="deliveries">
+            <div class="delivery-toolbar">
+              <el-button v-if="userStore.canEdit" type="primary" @click="openDeliveryDialog()">
+                新增交付
+              </el-button>
+            </div>
+            <el-table :data="deliveries" v-loading="deliveriesLoading" border>
+              <el-table-column prop="title" label="交付物" min-width="160" show-overflow-tooltip />
+              <el-table-column prop="projectName" label="关联项目" min-width="140" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <el-link
+                    v-if="row.projectId"
+                    type="primary"
+                    @click.stop="router.push({ name: 'ProjectDetail', params: { id: row.projectId } })"
+                  >
+                    {{ row.projectName || '-' }}
+                  </el-link>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="status" label="验收状态" width="120">
+                <template #default="{ row }">
+                  <el-tag :type="deliveryStatusTag(row.status)">{{ formatDeliveryStatus(row.status) }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="验收时间" width="170">
+                <template #default="{ row }">{{ row.acceptedAt ? formatDateTime(row.acceptedAt) : '-' }}</template>
+              </el-table-column>
+              <el-table-column prop="acceptedBy" label="验收人" width="120">
+                <template #default="{ row }">{{ row.acceptedBy || '-' }}</template>
+              </el-table-column>
+              <el-table-column prop="description" label="说明" min-width="160" show-overflow-tooltip />
+              <el-table-column v-if="userStore.canEdit" label="操作" width="220" fixed="right">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="row.status !== 'Accepted'"
+                    link
+                    type="success"
+                    size="small"
+                    @click="changeDeliveryStatus(row, 'Accepted')"
+                  >验收</el-button>
+                  <el-button
+                    v-if="row.status !== 'Rejected'"
+                    link
+                    type="warning"
+                    size="small"
+                    @click="changeDeliveryStatus(row, 'Rejected')"
+                  >驳回</el-button>
+                  <el-button link type="primary" size="small" @click="openDeliveryDialog(row)">编辑</el-button>
+                  <el-button
+                    v-if="userStore.canDelete"
+                    link
+                    type="danger"
+                    size="small"
+                    @click="handleDeleteDelivery(row)"
+                  >删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
         </el-tabs>
       </div>
 
@@ -147,6 +207,14 @@
       v-model:visible="detailVisible"
       :transaction-id="currentTransactionId"
     />
+
+    <PersonDeliveryDialog
+      v-model="deliveryDialogVisible"
+      :person-id="Number(route.params.id)"
+      :delivery="editingDelivery"
+      :projects="projects"
+      @success="reloadDeliveries"
+    />
   </div>
 </template>
 
@@ -155,7 +223,10 @@ import { onMounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Link } from '@element-plus/icons-vue'
-import { getPersonById } from '@/features/master-data/persons/api/person'
+import { deletePersonDelivery, getPersonById, getPersonDeliveries, updatePersonDelivery } from '@/features/master-data/persons/api/person'
+import PersonDeliveryDialog from '@/features/master-data/persons/components/PersonDeliveryDialog.vue'
+import { getActiveProjects } from '@/features/master-data/projects/api/project'
+import { useUserStore } from '@/features/auth/stores/user'
 import { getReceivablesByPerson } from '@/features/finance/api/receivable'
 import { getPayablesByPerson } from '@/features/finance/api/payable'
 import ReceivableRecordsTable from '@/shared/ui/ReceivableRecordsTable.vue'
@@ -170,7 +241,7 @@ import LinkDialog from '@/features/transactions/components/LinkDialog.vue'
 import TagDisplay from '@/components/tags/TagDisplay.vue'
 import { TABLE_COLUMN_WIDTH } from '@/shared/constants/table'
 import { useResizableTableColumns } from '@/shared/composables/useResizableTableColumns'
-import type { Person } from '@/features/master-data/persons/types/person'
+import type { Person, PersonDelivery, PersonDeliveryStatus } from '@/features/master-data/persons/types/person'
 import type { Transaction } from '@/features/transactions/types/transaction'
 import { LinkType } from '@/features/transactions/types/link'
 import { formatDateTime, formatTransactionAmount, getTransactionAmountColor, formatCurrency } from '@/shared/utils/formatters'
@@ -178,6 +249,7 @@ import TransactionDetail from '@/features/transactions/pages/TransactionDetailPa
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const { getColumnWidth, getColumnMinWidth, handleHeaderDragend } = useResizableTableColumns('person-detail-transactions')
 
 const loading = ref(false)
@@ -197,6 +269,12 @@ const payablesLoading = ref(false)
 const payablesLoaded = ref(false)
 const detailVisible = ref(false)
 const currentTransactionId = ref(0)
+const deliveries = ref<PersonDelivery[]>([])
+const deliveriesLoading = ref(false)
+const deliveriesLoaded = ref(false)
+const deliveryDialogVisible = ref(false)
+const editingDelivery = ref<PersonDelivery | null>(null)
+const projects = ref<{ id: number; name: string }[]>([])
 
 const handleViewTransaction = (row: Transaction) => {
   currentTransactionId.value = row.id
@@ -295,10 +373,90 @@ const loadPayables = async () => {
   }
 }
 
+const formatDeliveryStatus = (status: string) => {
+  const labels: Record<string, string> = {
+    Pending: '待验收',
+    Accepted: '已验收',
+    Rejected: '已驳回'
+  }
+  return labels[status] || status
+}
+
+const deliveryStatusTag = (status: string) => {
+  if (status === 'Accepted') return 'success'
+  if (status === 'Rejected') return 'danger'
+  return 'info'
+}
+
+const loadProjects = async () => {
+  if (projects.value.length > 0) return
+  try {
+    const { data } = await getActiveProjects()
+    projects.value = data.data || []
+  } catch {
+    projects.value = []
+  }
+}
+
+const loadDeliveries = async () => {
+  const id = Number(route.params.id)
+  if (!id || deliveriesLoaded.value) return
+  deliveriesLoading.value = true
+  try {
+    const { data } = await getPersonDeliveries(id)
+    deliveries.value = data.data || []
+    deliveriesLoaded.value = true
+  } catch {
+    ElMessage.error('加载交付记录失败')
+  } finally {
+    deliveriesLoading.value = false
+  }
+}
+
+const reloadDeliveries = async () => {
+  deliveriesLoaded.value = false
+  await loadDeliveries()
+}
+
+const openDeliveryDialog = async (row?: PersonDelivery) => {
+  editingDelivery.value = row ?? null
+  await loadProjects()
+  deliveryDialogVisible.value = true
+}
+
+const changeDeliveryStatus = async (row: PersonDelivery, status: PersonDeliveryStatus) => {
+  try {
+    await updatePersonDelivery(Number(route.params.id), row.id, {
+      title: row.title,
+      description: row.description || undefined,
+      projectId: row.projectId ?? null,
+      status,
+      notes: row.notes || undefined,
+      acceptedAt: status === 'Accepted' && row.status === 'Accepted' ? row.acceptedAt : undefined,
+      acceptedBy: status === 'Accepted' && row.status === 'Accepted' ? row.acceptedBy : undefined
+    })
+    ElMessage.success(status === 'Accepted' ? '已验收' : '已驳回')
+    await reloadDeliveries()
+  } catch {
+    ElMessage.error('更新验收状态失败')
+  }
+}
+
+const handleDeleteDelivery = async (row: PersonDelivery) => {
+  try {
+    await deletePersonDelivery(Number(route.params.id), row.id)
+    ElMessage.success('交付记录已删除')
+    await reloadDeliveries()
+  } catch {
+    ElMessage.error('删除交付记录失败')
+  }
+}
+
 const handleTabChange = (tab: string | number) => {
   if (tab === 'transactions' && !transactionsLoaded.value) loadTransactions()
   if (tab === 'receivables' && !receivablesLoaded.value) loadReceivables()
   if (tab === 'payables' && !payablesLoaded.value) loadPayables()
+  if (tab === 'deliveries' && !deliveriesLoaded.value) loadDeliveries()
 }
 
 const formatDate = (date: string) => formatDateTime(date, 'date')
@@ -376,5 +534,11 @@ onMounted(async () => {
 
 .clickable-rows :deep(tr) {
   cursor: pointer;
+}
+
+.delivery-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 </style>

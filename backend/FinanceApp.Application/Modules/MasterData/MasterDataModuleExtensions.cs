@@ -15,6 +15,7 @@ public static class MasterDataModuleExtensions
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IPersonService, PersonService>();
+        services.AddScoped<IPersonDeliveryService, PersonDeliveryService>();
         services.AddScoped<IProjectFinancialRecalculationService, ProjectFinancialRecalculationService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IConfigService, ConfigService>();
