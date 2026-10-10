@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FinanceApp.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261010120000_AddPersonDeliveries")]
+    [Migration("20261010130000_AddPersonDeliveries")]
     partial class AddPersonDeliveries
     {
         /// <inheritdoc />
