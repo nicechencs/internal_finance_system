@@ -1,15 +1,3 @@
-// ECharts 图表数据结构
-export interface ChartData {
-  xAxis: string[]
-  series: ChartSeries[]
-}
-
-export interface ChartSeries {
-  name: string
-  data: number[]
-  type?: 'line' | 'bar' | 'pie'
-}
-
 // 月度利润报表
 export interface MonthlyProfitReport {
   year: number
@@ -17,16 +5,15 @@ export interface MonthlyProfitReport {
   totalIncome: number
   totalExpense: number
   netProfit: number
-  profitMargin: number // 利润率
+  /** 利润率，已是百分数（80 表示 80%） */
+  profitRate: number
   incomeByCategory: CategoryAmount[]
   expenseByCategory: CategoryAmount[]
-  chartData: ChartData
 }
 
 export interface CategoryAmount {
   categoryName: string
   amount: number
-  percentage: number
 }
 
 // 现金流报表
@@ -34,74 +21,75 @@ export interface CashflowReport {
   startDate: string
   endDate: string
   openingBalance: number
+  totalIncome: number
+  totalExpense: number
   closingBalance: number
-  totalInflow: number
-  totalOutflow: number
-  netCashflow: number
-  inflowByAccount: AccountCashflow[]
-  outflowByAccount: AccountCashflow[]
-  dailyCashflow: DailyCashflow[]
-  chartData: ChartData
+  monthlyDetail: CashflowMonth[]
 }
 
-export interface AccountCashflow {
-  accountName: string
-  amount: number
-}
-
-export interface DailyCashflow {
-  date: string
-  inflow: number
-  outflow: number
-  net: number
+export interface CashflowMonth {
+  month: string
+  openingBalance: number
+  income: number
+  expense: number
+  closingBalance: number
 }
 
 // 项目利润报表
 export interface ProjectProfitReport {
   projects: ProjectProfit[]
-  totalIncome: number
-  totalExpense: number
-  totalProfit: number
-  chartData: ChartData
+  summary: ProjectProfitSummary
 }
 
 export interface ProjectProfit {
   projectId: number
   projectName: string
-  income: number
-  expense: number
-  profit: number
-  profitMargin: number
-  status: string
+  customerName: string
+  contractAmount: number
+  receivedAmount: number
+  totalCost: number
+  profitAmount: number
+  /** 利润率，已是百分数 */
+  profitRate: number
+}
+
+export interface ProjectProfitSummary {
+  totalContract: number
+  totalReceived: number
+  totalCost: number
+  totalProfit: number
+  /** 平均利润率，已是百分数 */
+  avgProfitRate: number
 }
 
 // 人员成本报表
 export interface PersonCostReport {
   persons: PersonCost[]
-  totalCost: number
-  averageCost: number
-  chartData: ChartData
+  summary: PersonCostSummary
 }
 
 export interface PersonCost {
   personId: number
   personName: string
-  department?: string
+  personType: string
+  salary: number
+  commission: number
+  reimbursement: number
+  dividend: number
   totalCost: number
-  projectCount: number
-  projects: PersonProjectCost[]
 }
 
-export interface PersonProjectCost {
-  projectName: string
-  cost: number
+export interface PersonCostSummary {
+  totalSalary: number
+  totalCommission: number
+  totalReimbursement: number
+  totalCost: number
 }
 
 // 供应商费用报表
 export interface SupplierExpenseReport {
   suppliers: SupplierExpense[]
-  totalExpense: number
-  chartData: ChartData
+  summary: SupplierExpenseSummary
 }
 
 export interface SupplierExpense {
@@ -109,12 +97,12 @@ export interface SupplierExpense {
   supplierName: string
   totalExpense: number
   transactionCount: number
-  categories: SupplierCategoryExpense[]
+  rank: number
 }
 
-export interface SupplierCategoryExpense {
-  categoryName: string
-  amount: number
+export interface SupplierExpenseSummary {
+  totalExpense: number
+  supplierCount: number
 }
 
 // 年度总览报表
@@ -123,17 +111,14 @@ export interface AnnualOverviewReport {
   totalIncome: number
   totalExpense: number
   netProfit: number
-  profitMargin: number
-  monthlyData: MonthlyOverview[]
-  incomeByCategory: CategoryAmount[]
-  expenseByCategory: CategoryAmount[]
-  topProjects: ProjectProfit[]
-  topSuppliers: SupplierExpense[]
-  chartData: {
-    monthlyTrend: ChartData
-    incomeDistribution: ChartData
-    expenseDistribution: ChartData
-  }
+  /** 利润率，已是百分数 */
+  profitRate: number
+  totalReceivable: number
+  totalPayable: number
+  monthlyTrend: MonthlyOverview[]
+  topProjects: TopItem[]
+  topCustomers: TopItem[]
+  topSuppliers: TopItem[]
 }
 
 export interface MonthlyOverview {
@@ -143,3 +128,8 @@ export interface MonthlyOverview {
   profit: number
 }
 
+export interface TopItem {
+  id: number
+  name: string
+  amount: number
+}
