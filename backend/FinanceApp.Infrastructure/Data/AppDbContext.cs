@@ -26,6 +26,7 @@ public class AppDbContext : DbContext
     public DbSet<Customer> Customers { get; set; }
     public DbSet<Supplier> Suppliers { get; set; }
     public DbSet<Person> Persons { get; set; }
+    public DbSet<PersonDelivery> PersonDeliveries { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<ImportBatch> ImportBatches { get; set; }
     public DbSet<BankTransaction> BankTransactions { get; set; }

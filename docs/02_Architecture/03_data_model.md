@@ -14,6 +14,7 @@
 - `customers`
 - `suppliers`
 - `persons`
+- `person_deliveries`（人员交付 / 验收记录，必关联人员，可选关联项目）
 - `projects`
 - `import_batches`
 - `bank_transactions`

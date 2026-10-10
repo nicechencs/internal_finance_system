@@ -1213,6 +1213,95 @@ namespace FinanceApp.Infrastructure.Data.Migrations
                     b.ToTable("persons", (string)null);
                 });
 
+            modelBuilder.Entity("FinanceApp.Domain.Entities.PersonDelivery", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<string>("AcceptedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("accepted_by");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<long>("PersonId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("person_id");
+
+                    b.Property<long?>("ProjectId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy")
+                        .HasDatabaseName("idx_person_deliveries_created_by")
+                        .HasFilter("is_deleted = false");
+
+                    b.HasIndex("PersonId")
+                        .HasDatabaseName("idx_person_deliveries_person_id")
+                        .HasFilter("is_deleted = false");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("idx_person_deliveries_project_id")
+                        .HasFilter("is_deleted = false");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("idx_person_deliveries_status")
+                        .HasFilter("is_deleted = false");
+
+                    b.ToTable("person_deliveries", (string)null);
+                });
+
             modelBuilder.Entity("FinanceApp.Domain.Entities.Project", b =>
                 {
                     b.Property<long>("Id")
@@ -2676,7 +2765,35 @@ namespace FinanceApp.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("Deliveries");
                 });
+
+            modelBuilder.Entity("FinanceApp.Domain.Entities.PersonDelivery", b =>
+                {
+                    b.HasOne("FinanceApp.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FinanceApp.Domain.Entities.Person", "Person")
+                        .WithMany("Deliveries")
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinanceApp.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Person");
+
+                    b.Navigation("Project");
+                });
+
 
             modelBuilder.Entity("FinanceApp.Domain.Entities.Project", b =>
                 {

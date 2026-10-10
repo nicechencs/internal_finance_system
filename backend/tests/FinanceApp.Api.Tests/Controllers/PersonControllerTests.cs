@@ -1,3 +1,5 @@
+using System.Reflection;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -12,14 +14,19 @@ namespace FinanceApp.Api.Tests.Controllers;
 public class PersonControllerTests
 {
     private readonly Mock<IPersonService> _personServiceMock;
+    private readonly Mock<IPersonDeliveryService> _personDeliveryServiceMock;
     private readonly Mock<ILogger<PersonController>> _loggerMock;
     private readonly PersonController _controller;
 
     public PersonControllerTests()
     {
         _personServiceMock = new Mock<IPersonService>();
+        _personDeliveryServiceMock = new Mock<IPersonDeliveryService>();
         _loggerMock = new Mock<ILogger<PersonController>>();
-        _controller = new PersonController(_personServiceMock.Object, _loggerMock.Object);
+        _controller = new PersonController(
+            _personServiceMock.Object,
+            _personDeliveryServiceMock.Object,
+            _loggerMock.Object);
     }
 
     [Fact]
@@ -105,5 +112,60 @@ public class PersonControllerTests
 
         // Assert
         result.Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task GetDeliveries_ReturnsOk()
+    {
+        var expected = new List<PersonDeliveryDto>
+        {
+            new() { Id = 8, PersonId = 1, Title = "月度报表", Status = "Pending" }
+        };
+        _personDeliveryServiceMock
+            .Setup(x => x.GetByPersonAsync(1))
+            .ReturnsAsync(expected);
+
+        var result = await _controller.GetDeliveries(1);
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<PersonDeliveryDto>>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Data.Should().ContainSingle(d => d.Title == "月度报表");
+    }
+
+    [Fact]
+    public async Task CreateDelivery_ReturnsCreated()
+    {
+        var request = new CreatePersonDeliveryRequest { Title = "验收包", Status = "Accepted" };
+        var created = new PersonDeliveryDto { Id = 9, PersonId = 3, Title = "验收包", Status = "Accepted" };
+        _personDeliveryServiceMock
+            .Setup(x => x.CreateAsync(3, request))
+            .ReturnsAsync(created);
+
+        var result = await _controller.CreateDelivery(3, request);
+
+        var createdResult = result.Result.Should().BeOfType<ObjectResult>().Subject;
+        createdResult.StatusCode.Should().Be(201);
+        var apiResponse = createdResult.Value.Should().BeOfType<ApiResponse<PersonDeliveryDto>>().Subject;
+        apiResponse.Data!.Id.Should().Be(9);
+        apiResponse.Message.Should().Be("交付记录创建成功");
+    }
+
+    [Fact]
+    public void DeliveryEndpoints_UseMasterDataRoles()
+    {
+        AssertRoles(nameof(PersonController.GetDeliveries), "Admin,Accountant,Viewer");
+        AssertRoles(nameof(PersonController.CreateDelivery), "Admin,Accountant");
+        AssertRoles(nameof(PersonController.UpdateDelivery), "Admin,Accountant");
+        AssertRoles(nameof(PersonController.DeleteDelivery), "Admin");
+    }
+
+    private static void AssertRoles(string methodName, string expectedRoles)
+    {
+        var method = typeof(PersonController).GetMethod(methodName);
+        method.Should().NotBeNull();
+        var authorize = method!.GetCustomAttribute<AuthorizeAttribute>();
+        authorize.Should().NotBeNull();
+        authorize!.Roles.Should().Be(expectedRoles);
     }
 }

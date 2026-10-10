@@ -50,6 +50,34 @@ export interface UpdatePersonRequest {
   isActive: boolean
 }
 
+export type PersonDeliveryStatus = 'Pending' | 'Accepted' | 'Rejected'
+
+export interface PersonDelivery {
+  id: number
+  personId: number
+  personName: string
+  projectId?: number | null
+  projectName?: string | null
+  title: string
+  description?: string | null
+  status: PersonDeliveryStatus | string
+  acceptedAt?: string | null
+  acceptedBy?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PersonDeliveryRequest {
+  title: string
+  description?: string
+  projectId?: number | null
+  status: PersonDeliveryStatus
+  acceptedAt?: string | null
+  acceptedBy?: string | null
+  notes?: string | null
+}
+
 export interface PersonFinanceSummary {
   totalCost: number
   directCost: number

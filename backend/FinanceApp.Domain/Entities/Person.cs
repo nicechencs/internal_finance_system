@@ -19,4 +19,5 @@ public class Person : BaseEntity
 
     // Navigation properties
     public ICollection<TagBinding> TagBindings { get; set; } = new List<TagBinding>();
+    public ICollection<PersonDelivery> Deliveries { get; set; } = new List<PersonDelivery>();
 }
