@@ -104,6 +104,7 @@ public class ImportService : IImportService
                     CounterpartyBank = parsed.CounterpartyBank,
                     TransactionNumber = parsed.TransactionNumber,
                     Description = parsed.Description,
+                    VoucherNo = parsed.VoucherNo,
                     Memo = parsed.ExtendedInfo,
                     UniqueHash = uniqueHash,
                     IsDuplicate = false,
@@ -777,6 +778,7 @@ public class ImportService : IImportService
             CategoryId = preview.MatchedCategoryId,
             AccountId = batch.AccountId,
             Description = preview.Description,
+            VoucherNo = VoucherNoNormalizer.Normalize(preview.VoucherNo),
             Status = TransactionStatus.Confirmed,
             IsAllocated = false
         };

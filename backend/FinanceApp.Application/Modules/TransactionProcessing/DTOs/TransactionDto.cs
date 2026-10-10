@@ -28,6 +28,7 @@ public class TransactionDto
     public string? CounterpartyBank { get; set; }
     public string? TransactionNumber { get; set; }
     public string? Description { get; set; }
+    public string? VoucherNo { get; set; }
     public string? Memo { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool IsAllocated { get; set; }

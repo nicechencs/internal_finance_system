@@ -75,6 +75,9 @@
         <el-descriptions-item label="流水号">
           {{ transaction.transactionNumber || '-' }}
         </el-descriptions-item>
+        <el-descriptions-item label="凭证号">
+          {{ transaction.voucherNo || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="描述" :span="2">
           {{ transaction.description || '-' }}
         </el-descriptions-item>

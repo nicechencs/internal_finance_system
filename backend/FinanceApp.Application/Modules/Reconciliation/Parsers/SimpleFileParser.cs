@@ -36,6 +36,10 @@ public class SimpleFileParser : IFileParser
         if (rowCount < 2)
             throw new Common.ValidationException("Excel 文件中没有数据行（仅有标题行或为空）");
 
+        var voucherColumn = ImportColumnAliases.FindColumn(
+            ExcelHeaderLookup.FromRow(col => worksheet.Cells[1, col].GetValue<string>(), dimension.Columns),
+            ImportColumnAliases.VoucherNo);
+
         int skippedRows = 0;
         for (int row = 2; row <= rowCount; row++)
         {
@@ -101,6 +105,16 @@ public class SimpleFileParser : IFileParser
                     counterpartyAccount = worksheet.Cells[row, 5].GetValue<string>()?.Trim();
                 }
 
+                string? voucherNo = null;
+                if (voucherColumn.HasValue)
+                {
+                    voucherNo = worksheet.Cells[row, voucherColumn.Value].GetValue<string>()?.Trim();
+                    if (string.IsNullOrWhiteSpace(voucherNo))
+                    {
+                        voucherNo = null;
+                    }
+                }
+
                 rows.Add(new ParsedBankRow
                 {
                     TransactionDate = transactionDate,
@@ -108,7 +122,8 @@ public class SimpleFileParser : IFileParser
                     Direction = direction,
                     Counterparty = counterparty,
                     CounterpartyAccount = counterpartyAccount,
-                    Description = description
+                    Description = description,
+                    VoucherNo = voucherNo
                 });
             }
             catch (Exception ex)

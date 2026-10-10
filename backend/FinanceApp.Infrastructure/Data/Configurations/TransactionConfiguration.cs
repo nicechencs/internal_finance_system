@@ -60,6 +60,10 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(e => e.Description)
             .HasColumnName("description");
 
+        builder.Property(e => e.VoucherNo)
+            .HasColumnName("voucher_no")
+            .HasMaxLength(64);
+
         builder.Property(e => e.Status)
             .HasColumnName("status")
             .HasMaxLength(20)

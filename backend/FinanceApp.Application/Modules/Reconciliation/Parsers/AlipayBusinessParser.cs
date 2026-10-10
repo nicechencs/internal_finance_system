@@ -40,6 +40,9 @@ public class AlipayBusinessParser : IFileParser
             throw new Common.ValidationException("支付宝文件数据不足：至少需要标题行、表头行和一行数据");
 
         // 第1行是标题行（合并单元格，账号信息），第2行是表头行，第3行起是数据
+        var headerCells = GetCellValues(xmlRows[1]);
+        var voucherIndex = FindVoucherColumn(headerCells);
+
         int skippedRows = 0;
         for (int i = 2; i < xmlRows.Count; i++)
         {
@@ -107,6 +110,16 @@ public class AlipayBusinessParser : IFileParser
                 // 账务类型 (col7, index 6) 作为 Description
                 var accountType = GetCellValue(cells, 6)?.Trim() ?? string.Empty;
 
+                string? voucherNo = null;
+                if (voucherIndex.HasValue)
+                {
+                    voucherNo = GetCellValue(cells, voucherIndex.Value)?.Trim();
+                    if (string.IsNullOrWhiteSpace(voucherNo))
+                    {
+                        voucherNo = null;
+                    }
+                }
+
                 // 构建支付宝特有字段 JSON → ExtendedInfo
                 var extendedInfo = BuildExtendedInfo(cells);
 
@@ -121,6 +134,7 @@ public class AlipayBusinessParser : IFileParser
                     CounterpartyAccount = string.IsNullOrWhiteSpace(counterpartyAccount) ? null : counterpartyAccount,
                     TransactionNumber = string.IsNullOrWhiteSpace(transactionNumber) ? null : transactionNumber,
                     Description = accountType,
+                    VoucherNo = voucherNo,
                     ExtendedInfo = extendedInfo
                 });
             }
@@ -155,6 +169,26 @@ public class AlipayBusinessParser : IFileParser
             values.Add(data?.Value ?? string.Empty);
         }
         return values;
+    }
+
+    private static int? FindVoucherColumn(List<string> headerCells)
+    {
+        for (var i = 0; i < headerCells.Count; i++)
+        {
+            var header = headerCells[i]?.Trim();
+            if (string.IsNullOrEmpty(header))
+            {
+                continue;
+            }
+
+            if (ImportColumnAliases.VoucherNo.Any(alias =>
+                    string.Equals(alias, header, StringComparison.OrdinalIgnoreCase)))
+            {
+                return i;
+            }
+        }
+
+        return null;
     }
 
     private static string? GetCellValue(List<string> cells, int index)
