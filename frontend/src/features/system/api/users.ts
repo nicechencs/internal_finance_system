@@ -8,10 +8,11 @@ import type {
   UserAdmin
 } from '@/shared/types/common'
 
-export const getUsers = () => {
+export const getUsers = (params?: { sortBy?: string; sortOrder?: 'asc' | 'desc' }) => {
   return request<ApiResponse<UserAdmin[]>>({
     url: '/users',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 

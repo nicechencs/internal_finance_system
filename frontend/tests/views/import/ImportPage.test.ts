@@ -144,6 +144,8 @@ describe('ImportPage.vue', () => {
       page: 1,
       pageSize: 10,
     })
+    expect(wrapper.text()).toContain('批次ID')
+    expect(wrapper.text()).toContain('导入时间')
 
     // 验证账户选择器渲染
     expect(wrapper.find('.el-select').exists()).toBe(true)

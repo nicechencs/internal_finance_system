@@ -31,9 +31,9 @@
     </div>
 
     <div class="table-section">
-      <el-table :data="payableTypes" v-loading="loading" border>
-        <el-table-column label="名称" prop="name" min-width="150" />
-        <el-table-column label="编码" prop="code" min-width="150">
+      <el-table :data="payableTypes" v-loading="loading" border @sort-change="handleSortChange">
+        <el-table-column label="名称" prop="name" sortable="custom" min-width="150" />
+        <el-table-column label="编码" prop="code" sortable="custom" min-width="150">
           <template #default="{ row }">
             <span>{{ row.code || '-' }}</span>
           </template>
@@ -43,14 +43,14 @@
             <span>{{ row.description || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" prop="isActive" sortable="custom" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.isActive ? 'success' : 'info'">
               {{ row.isActive ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="排序" prop="sortOrder" width="100" align="center" />
+        <el-table-column label="排序" prop="sortOrder" sortable="custom" width="100" align="center" />
         <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <el-button v-if="userStore.canEdit" link type="primary" @click="handleEdit(row)">编辑</el-button>
@@ -144,6 +144,18 @@ const pagination = reactive({
   total: 0
 })
 
+const sortState = reactive({
+  sortBy: '',
+  sortOrder: '' as '' | 'asc' | 'desc'
+})
+
+const handleSortChange = ({ prop, order }: { prop: string; order: string | null }) => {
+  sortState.sortBy = order ? prop : ''
+  sortState.sortOrder = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+  pagination.page = 1
+  loadPayableTypes()
+}
+
 const form = reactive({
   id: 0,
   name: '',
@@ -165,6 +177,10 @@ const loadPayableTypes = async () => {
       pageSize: pagination.pageSize,
       name: searchForm.name || undefined,
       isActive: searchForm.isActive === '' ? undefined : searchForm.isActive
+    }
+    if (sortState.sortBy) {
+      params.sortBy = sortState.sortBy
+      params.sortOrder = sortState.sortOrder
     }
     const response = await getPayableTypesPaged(params)
     payableTypes.value = response.data.data.items

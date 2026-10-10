@@ -23,5 +23,5 @@ export interface AuditLogQueryParams {
   startDate?: string
   endDate?: string
   sortBy?: string
-  sortDesc?: boolean
+  sortOrder?: 'asc' | 'desc'
 }

@@ -299,9 +299,9 @@
         </el-form>
       </div>
 
-      <el-table :data="batches" style="width: 100%" v-loading="batchLoading" class="resizable-table" border allow-drag-last-column @header-dragend="batchTableColumns.handleHeaderDragend">
-        <el-table-column prop="id" label="批次ID" :width="batchTableColumns.getColumnWidth('id', TABLE_COLUMN_WIDTH.index)" />
-        <el-table-column prop="fileName" label="文件名" :min-width="batchTableColumns.getColumnMinWidth('fileName', TABLE_COLUMN_WIDTH.description)" show-overflow-tooltip />
+      <el-table :data="batches" style="width: 100%" v-loading="batchLoading" class="resizable-table" border allow-drag-last-column @header-dragend="batchTableColumns.handleHeaderDragend" @sort-change="handleBatchSortChange">
+        <el-table-column prop="id" label="批次ID" sortable="custom" :width="batchTableColumns.getColumnWidth('id', TABLE_COLUMN_WIDTH.index)" />
+        <el-table-column prop="fileName" label="文件名" sortable="custom" :min-width="batchTableColumns.getColumnMinWidth('fileName', TABLE_COLUMN_WIDTH.description)" show-overflow-tooltip />
         <el-table-column prop="accountName" label="目标账户" :width="batchTableColumns.getColumnWidth('accountName', TABLE_COLUMN_WIDTH.account)">
           <template #default="{ row }">
             <el-link v-if="row.accountId" type="primary" @click="router.push({ name: 'AccountDetail', params: { id: row.accountId } })">
@@ -310,18 +310,18 @@
             <span v-else>{{ row.accountName || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="totalCount" label="总记录数" :width="batchTableColumns.getColumnWidth('totalCount', TABLE_COLUMN_WIDTH.status)" align="center" />
-        <el-table-column prop="successCount" label="成功" :width="batchTableColumns.getColumnWidth('successCount', TABLE_COLUMN_WIDTH.type)" align="center">
+        <el-table-column prop="totalCount" label="总记录数" sortable="custom" :width="batchTableColumns.getColumnWidth('totalCount', TABLE_COLUMN_WIDTH.status)" align="center" />
+        <el-table-column prop="successCount" label="成功" sortable="custom" :width="batchTableColumns.getColumnWidth('successCount', TABLE_COLUMN_WIDTH.type)" align="center">
           <template #default="{ row }">
             <span class="amount-in">{{ row.successCount }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="duplicateCount" label="重复" :width="batchTableColumns.getColumnWidth('duplicateCount', TABLE_COLUMN_WIDTH.type)" align="center">
+        <el-table-column prop="duplicateCount" label="重复" sortable="custom" :width="batchTableColumns.getColumnWidth('duplicateCount', TABLE_COLUMN_WIDTH.type)" align="center">
           <template #default="{ row }">
             <span style="color: var(--color-warning)">{{ row.duplicateCount }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="errorCount" label="失败" :width="batchTableColumns.getColumnWidth('errorCount', TABLE_COLUMN_WIDTH.type)" align="center">
+        <el-table-column prop="errorCount" label="失败" sortable="custom" :width="batchTableColumns.getColumnWidth('errorCount', TABLE_COLUMN_WIDTH.type)" align="center">
           <template #default="{ row }">
             <el-tooltip v-if="row.errorCount > 0 && row.errorMessage" :content="row.errorMessage" placement="top" :show-after="300">
               <span style="color: #EF4444; font-weight: 600; cursor: help; border-bottom: 1px dashed #EF4444">{{ row.errorCount }}</span>
@@ -330,14 +330,14 @@
             <span v-else>0</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" :width="batchTableColumns.getColumnWidth('status', TABLE_COLUMN_WIDTH.status)" align="center">
+        <el-table-column prop="status" label="状态" sortable="custom" :width="batchTableColumns.getColumnWidth('status', TABLE_COLUMN_WIDTH.status)" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="导入时间" :width="batchTableColumns.getColumnWidth('createdAt', TABLE_COLUMN_WIDTH.dateTime)">
+        <el-table-column prop="createdAt" label="导入时间" sortable="custom" :width="batchTableColumns.getColumnWidth('createdAt', TABLE_COLUMN_WIDTH.dateTime)">
           <template #default="{ row }">
             {{ formatDateTime(row.createdAt) }}
           </template>
@@ -430,6 +430,17 @@ const batchPagination = reactive({
   pageSize: 10,
   total: 0
 })
+const batchSortState = reactive({
+  sortBy: '',
+  sortOrder: '' as '' | 'asc' | 'desc'
+})
+
+const handleBatchSortChange = ({ prop, order }: { prop: string; order: string | null }) => {
+  batchSortState.sortBy = order ? prop : ''
+  batchSortState.sortOrder = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+  batchPagination.page = 1
+  loadBatches()
+}
 const batchFilter = reactive({
   accountId: null as number | null,
   dateRange: null as [string, string] | null,
@@ -647,6 +658,10 @@ const loadBatches = async () => {
     }
     if (batchFilter.fileName) {
       params.fileName = batchFilter.fileName
+    }
+    if (batchSortState.sortBy) {
+      params.sortBy = batchSortState.sortBy
+      params.sortOrder = batchSortState.sortOrder || undefined
     }
     const response = await getImportBatches(params)
     batches.value = response.data.data.items

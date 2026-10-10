@@ -45,9 +45,10 @@
         style="width: 100%"
         v-loading="loading"
         border
+        @sort-change="handleSortChange"
       >
         <!-- 标签名称（含颜色色块） -->
-        <el-table-column label="标签名称" min-width="160">
+        <el-table-column prop="name" label="标签名称" sortable="custom" min-width="160">
           <template #default="{ row }">
             <div class="tag-name-cell">
               <span
@@ -63,17 +64,17 @@
         </el-table-column>
 
         <!-- 编码 -->
-        <el-table-column prop="code" label="编码" width="140">
+        <el-table-column prop="code" label="编码" sortable="custom" width="140">
           <template #default="{ row }">
             <span class="code-text">{{ row.code || '-' }}</span>
           </template>
         </el-table-column>
 
         <!-- 排序 -->
-        <el-table-column prop="sortOrder" label="排序" width="80" align="center" />
+        <el-table-column prop="sortOrder" label="排序" sortable="custom" width="80" align="center" />
 
         <!-- 是否启用 -->
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column prop="isActive" label="状态" sortable="custom" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
               {{ row.isActive ? '启用' : '禁用' }}
@@ -82,7 +83,7 @@
         </el-table-column>
 
         <!-- 是否系统标签 -->
-        <el-table-column label="系统标签" width="100" align="center">
+        <el-table-column prop="isSystem" label="系统标签" sortable="custom" width="100" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.isSystem" type="warning" size="small">系统</el-tag>
             <span v-else class="text-placeholder">-</span>
@@ -257,6 +258,16 @@ const tagStore = useTagStore()
 const searchName = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
+const sortState = reactive({
+  sortBy: '',
+  sortOrder: '' as '' | 'asc' | 'desc'
+})
+
+const handleSortChange = ({ prop, order }: { prop: string; order: string | null }) => {
+  sortState.sortBy = order ? prop : ''
+  sortState.sortOrder = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+  currentPage.value = 1
+}
 
 // ── 状态 ──
 const activeScope = ref('transaction')
@@ -285,9 +296,22 @@ const formRules: FormRules = {
 
 // ── 客户端过滤与分页 ──
 const filteredData = computed(() => {
-  if (!searchName.value) return tableData.value
-  const keyword = searchName.value.toLowerCase()
-  return tableData.value.filter(tag => tag.name.toLowerCase().includes(keyword))
+  const keyword = searchName.value.trim().toLowerCase()
+  const filtered = keyword
+    ? tableData.value.filter(tag => tag.name.toLowerCase().includes(keyword))
+    : [...tableData.value]
+
+  if (!sortState.sortBy) return filtered
+
+  const direction = sortState.sortOrder === 'desc' ? -1 : 1
+  const key = sortState.sortBy as keyof Tag
+  return filtered.sort((a, b) => {
+    const left = a[key]
+    const right = b[key]
+    if (typeof left === 'number' && typeof right === 'number') return (left - right) * direction
+    if (typeof left === 'boolean' && typeof right === 'boolean') return (Number(left) - Number(right)) * direction
+    return String(left ?? '').localeCompare(String(right ?? ''), 'zh') * direction
+  })
 })
 
 const paginatedData = computed(() => {
