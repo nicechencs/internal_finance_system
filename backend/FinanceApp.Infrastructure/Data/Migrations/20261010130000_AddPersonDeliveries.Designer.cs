@@ -2265,6 +2265,11 @@ namespace FinanceApp.Infrastructure.Data.Migrations
                         .HasColumnType("date")
                         .HasColumnName("transaction_date");
 
+                    b.Property<string>("VoucherNo")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("voucher_no");
+
                     b.Property<string>("TransactionType")
                         .IsRequired()
                         .HasMaxLength(20)
