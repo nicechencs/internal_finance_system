@@ -37,12 +37,25 @@ public class UserManagementService : IUserManagementService
         _auditLogService = auditLogService;
     }
 
-    public async Task<IReadOnlyList<UserAdminDto>> GetUsersAsync()
+    public async Task<IReadOnlyList<UserAdminDto>> GetUsersAsync(string? sortBy = null, string? sortOrder = null)
     {
         var now = DateTime.UtcNow;
-        var users = await _userRepository.GetQueryable()
+        var query = _userRepository.GetQueryable()
             .OrderBy(u => u.Role)
-            .ThenBy(u => u.Username)
+            .ThenBy(u => u.Username);
+
+        var sortableFields = new Dictionary<string, System.Linq.Expressions.Expression<Func<User, object>>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["username"] = u => u.Username,
+            ["userName"] = u => u.Username,
+            ["fullName"] = u => u.FullName,
+            ["email"] = u => u.Email ?? string.Empty,
+            ["role"] = u => u.Role,
+            ["isActive"] = u => u.IsActive,
+            ["lastLoginAt"] = u => u.LastLoginAt ?? DateTime.MinValue,
+            ["createdAt"] = u => u.CreatedAt
+        };
+        var users = await SortingHelper.ApplySorting(query, sortBy, sortOrder, sortableFields)
             .ToListAsync();
 
         return users.Select(user =>

@@ -90,6 +90,8 @@ describe('AccountListPage.vue', () => {
     expect(accountApi.getAccountStatistics).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('账户管理')
     expect(wrapper.text()).toContain('定期账户主档')
+    expect(wrapper.text()).toContain('开户行')
+    expect(wrapper.text()).not.toContain('银行名称')
   })
 
   it('定期账户创建成功后应弹出下一步建议并跳转到定期台账创建首笔记录', async () => {

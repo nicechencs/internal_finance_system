@@ -76,7 +76,9 @@ public class AuditLogService : IAuditLogService
         {
             ["createdAt"] = a => a.CreatedAt,
             ["action"] = a => a.Action,
-            ["entityType"] = a => a.EntityType
+            ["entityType"] = a => a.EntityType,
+            ["username"] = a => a.User != null ? a.User.Username : string.Empty,
+            ["userName"] = a => a.User != null ? a.User.Username : string.Empty
         };
         var sortedQuery = SortingHelper.ApplySorting(orderedQuery, request.SortBy, request.SortOrder, sortableFields);
 

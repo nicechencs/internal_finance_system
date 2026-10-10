@@ -109,7 +109,7 @@
             <span>{{ row.currency || 'CNY' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="bankName" label="银行名称" :width="getColumnWidth('bankName', TABLE_COLUMN_WIDTH.bank)">
+        <el-table-column prop="bankName" label="开户行" :width="getColumnWidth('bankName', TABLE_COLUMN_WIDTH.bank)">
           <template #default="{ row }">
             <span>{{ row.bankName || '-' }}</span>
           </template>

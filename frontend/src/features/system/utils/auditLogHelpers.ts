@@ -110,7 +110,7 @@ export const PROPERTY_LABEL_MAP: Record<string, string> = {
   balance: '余额',
   initialBalance: '初始余额',
   currency: '币种',
-  bankName: '银行名称',
+  bankName: '开户行',
   accountNumber: '账号',
   contactPerson: '联系人',
   contactPhone: '联系电话',

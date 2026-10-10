@@ -46,8 +46,8 @@
         </el-select>
       </el-form-item>
 
-      <el-form-item label="银行名称" prop="bankName">
-        <el-input v-model="formData.bankName" placeholder="请输入银行名称" />
+      <el-form-item label="开户行" prop="bankName">
+        <el-input v-model="formData.bankName" placeholder="请输入开户行" />
       </el-form-item>
 
       <el-form-item label="账号" prop="accountNumber">

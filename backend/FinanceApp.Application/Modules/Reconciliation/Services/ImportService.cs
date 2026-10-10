@@ -834,8 +834,21 @@ public class ImportService : IImportService
 
         var orderedQuery = query.OrderByDescending(b => b.CreatedAt);
 
-        var total = await orderedQuery.CountAsync();
-        var items = await orderedQuery
+        var sortableFields = new Dictionary<string, System.Linq.Expressions.Expression<Func<ImportBatch, object>>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["id"] = b => b.Id,
+            ["fileName"] = b => b.FileName,
+            ["status"] = b => b.Status,
+            ["createdAt"] = b => b.CreatedAt,
+            ["totalCount"] = b => b.RecordCount,
+            ["successCount"] = b => b.SuccessCount,
+            ["duplicateCount"] = b => b.DuplicateCount,
+            ["errorCount"] = b => b.ErrorCount
+        };
+        var sortedQuery = SortingHelper.ApplySorting(orderedQuery, request.SortBy, request.SortOrder, sortableFields);
+
+        var total = await sortedQuery.CountAsync();
+        var items = await sortedQuery
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToListAsync();

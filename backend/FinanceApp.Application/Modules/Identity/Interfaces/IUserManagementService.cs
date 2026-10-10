@@ -4,7 +4,7 @@ namespace FinanceApp.Application.Modules.Identity.Interfaces;
 
 public interface IUserManagementService
 {
-    Task<IReadOnlyList<UserAdminDto>> GetUsersAsync();
+    Task<IReadOnlyList<UserAdminDto>> GetUsersAsync(string? sortBy = null, string? sortOrder = null);
     Task<UserAdminDto> CreateUserAsync(CreateUserRequest request);
     Task SetUserPasswordAsync(long userId, SetUserPasswordRequest request);
     Task SetUserStatusAsync(long userId, SetUserStatusRequest request, long currentUserId);

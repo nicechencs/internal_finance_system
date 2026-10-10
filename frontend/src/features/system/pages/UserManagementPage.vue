@@ -19,20 +19,20 @@
         <el-button @click="loadUsers" :loading="loading">刷新</el-button>
       </div>
 
-      <el-table :data="filteredUsers" v-loading="loading" class="resizable-table" border>
-        <el-table-column prop="username" label="用户名" min-width="120" />
-        <el-table-column prop="fullName" label="姓名" min-width="140" />
-        <el-table-column prop="email" label="邮箱" min-width="180">
+      <el-table :data="filteredUsers" v-loading="loading" class="resizable-table" border @sort-change="handleSortChange">
+        <el-table-column prop="username" label="用户名" sortable="custom" min-width="120" />
+        <el-table-column prop="fullName" label="姓名" sortable="custom" min-width="140" />
+        <el-table-column prop="email" label="邮箱" sortable="custom" min-width="180">
           <template #default="{ row }">
             {{ row.email || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="role" label="角色" width="120">
+        <el-table-column prop="role" label="角色" sortable="custom" width="120">
           <template #default="{ row }">
             <el-tag :type="roleTagType(row.role)" effect="light">{{ roleLabel(row.role) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="120">
+        <el-table-column prop="isActive" label="状态" sortable="custom" width="120">
           <template #default="{ row }">
             <el-tag :type="row.isActive ? 'success' : 'danger'" effect="light">
               {{ row.isActive ? '启用' : '禁用' }}
@@ -45,7 +45,7 @@
             <span v-else>正常</span>
           </template>
         </el-table-column>
-        <el-table-column label="最近登录" min-width="180">
+        <el-table-column prop="lastLoginAt" label="最近登录" sortable="custom" min-width="180">
           <template #default="{ row }">
             {{ row.lastLoginAt ? formatDateTime(row.lastLoginAt) : '-' }}
           </template>
@@ -221,6 +221,16 @@ const userStore = useUserStore()
 const users = ref<UserAdmin[]>([])
 const keyword = ref('')
 const loading = ref(false)
+const sortState = reactive({
+  sortBy: '',
+  sortOrder: '' as '' | 'asc' | 'desc'
+})
+
+const handleSortChange = ({ prop, order }: { prop: string; order: string | null }) => {
+  sortState.sortBy = order ? prop : ''
+  sortState.sortOrder = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+  loadUsers()
+}
 const saving = ref(false)
 const createDialogVisible = ref(false)
 const editDialogVisible = ref(false)
@@ -331,7 +341,11 @@ const resetPasswordForm = () => {
 const loadUsers = async () => {
   loading.value = true
   try {
-    const response = await getUsers()
+    const response = await getUsers(
+      sortState.sortBy
+        ? { sortBy: sortState.sortBy, sortOrder: sortState.sortOrder || undefined }
+        : undefined
+    )
     users.value = response.data.data
   } finally {
     loading.value = false

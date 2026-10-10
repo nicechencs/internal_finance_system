@@ -63,6 +63,7 @@
           border
           allow-drag-last-column
           @header-dragend="handleHeaderDragend"
+          @sort-change="handleSortChange"
           @row-click="handleRowClick"
           row-class-name="clickable-row"
         >
@@ -72,13 +73,13 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="createdAt" label="时间" :width="getColumnWidth('createdAt', TABLE_COLUMN_WIDTH.dateTime)">
+          <el-table-column prop="createdAt" label="时间" sortable="custom" :width="getColumnWidth('createdAt', TABLE_COLUMN_WIDTH.dateTime)">
             <template #default="{ row }">
               {{ formatDateTime(row.createdAt) }}
             </template>
           </el-table-column>
 
-          <el-table-column prop="action" label="操作" :width="getColumnWidth('action', TABLE_COLUMN_WIDTH.type)">
+          <el-table-column prop="action" label="操作" sortable="custom" :width="getColumnWidth('action', TABLE_COLUMN_WIDTH.type)">
             <template #default="{ row }">
               <el-tag :type="getActionTagType(row.action)" size="small">
                 {{ getActionLabel(row.action) }}
@@ -86,7 +87,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="entityType" label="实体类型" :width="getColumnWidth('entityType', TABLE_COLUMN_WIDTH.shortText)">
+          <el-table-column prop="entityType" label="实体类型" sortable="custom" :width="getColumnWidth('entityType', TABLE_COLUMN_WIDTH.shortText)">
             <template #default="{ row }">
               {{ getEntityTypeLabel(row.entityType) }}
             </template>
@@ -98,7 +99,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="operatorName" label="操作人" :width="getColumnWidth('operatorName', TABLE_COLUMN_WIDTH.contact)">
+          <el-table-column prop="username" label="操作人" sortable="custom" :width="getColumnWidth('username', TABLE_COLUMN_WIDTH.contact)">
             <template #default="{ row }">
               <el-link
                 v-if="row.userId"
@@ -194,6 +195,18 @@ const pagination = reactive({
   total: 0
 })
 
+const sortState = reactive({
+  sortBy: '',
+  sortOrder: '' as '' | 'asc' | 'desc'
+})
+
+const handleSortChange = ({ prop, order }: { prop: string; order: string | null }) => {
+  sortState.sortBy = order ? prop : ''
+  sortState.sortOrder = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+  pagination.page = 1
+  loadAuditLogs()
+}
+
 // ── 变更摘要：预计算，避免渲染时重复 JSON.parse ──
 const buildSummary = (row: AuditLog): string => {
   const entityLabel = getEntityTypeLabel(row.entityType)
@@ -275,6 +288,10 @@ const loadAuditLogs = async () => {
     if (filters.dateRange?.length === 2) {
       params.startDate = formatLocalDate(filters.dateRange[0])
       params.endDate = formatLocalDate(filters.dateRange[1])
+    }
+    if (sortState.sortBy) {
+      params.sortBy = sortState.sortBy
+      params.sortOrder = sortState.sortOrder || undefined
     }
 
     const { data } = await getAuditLogs(params)

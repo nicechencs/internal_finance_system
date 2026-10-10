@@ -21,9 +21,11 @@ public class UsersController : BaseApiController
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<UserAdminDto>>>> GetUsers()
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<UserAdminDto>>>> GetUsers(
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null)
     {
-        var users = await _userManagementService.GetUsersAsync();
+        var users = await _userManagementService.GetUsersAsync(sortBy, sortOrder);
         return Ok(ApiResponse<IReadOnlyList<UserAdminDto>>.SuccessResponse(users));
     }
 

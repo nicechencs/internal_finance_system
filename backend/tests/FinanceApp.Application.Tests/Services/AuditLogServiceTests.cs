@@ -285,6 +285,45 @@ public class AuditLogServiceTests : TestBase
     }
 
     [Fact]
+    public async Task GetPagedAsync_WithSortByUsernameAsc_ShouldOrderByOperatorName()
+    {
+        var now = DateTime.UtcNow;
+        var auditLogs = new List<AuditLog>
+        {
+            new() { Id = 1, EntityType = "Account", Action = "Update", CreatedAt = now, User = new User { Username = "charlie" } },
+            new() { Id = 2, EntityType = "Customer", Action = "Create", CreatedAt = now.AddMinutes(-1), User = new User { Username = "alice" } },
+            new() { Id = 3, EntityType = "Account", Action = "Delete", CreatedAt = now.AddMinutes(-2), User = null }
+        };
+
+        var queryableMock = auditLogs.AsQueryable().BuildMock();
+        _auditLogRepositoryMock.Setup(r => r.GetQueryable()).Returns(queryableMock.Object);
+
+        var request = new AuditLogPageRequest { Page = 1, PageSize = 10, SortBy = "username", SortOrder = "asc" };
+        var result = await _service.GetPagedAsync(request);
+
+        result.Items.Select(i => i.OperatorName).Should().Equal("System", "alice", "charlie");
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_WithUnknownSortBy_ShouldKeepCreatedAtDescending()
+    {
+        var now = DateTime.UtcNow;
+        var auditLogs = new List<AuditLog>
+        {
+            new() { Id = 1, EntityType = "Test", Action = "Create", CreatedAt = now.AddHours(-2), User = new User { Username = "user1" } },
+            new() { Id = 2, EntityType = "Test", Action = "Create", CreatedAt = now, User = new User { Username = "user2" } }
+        };
+
+        var queryableMock = auditLogs.AsQueryable().BuildMock();
+        _auditLogRepositoryMock.Setup(r => r.GetQueryable()).Returns(queryableMock.Object);
+
+        var request = new AuditLogPageRequest { Page = 1, PageSize = 10, SortBy = "summary", SortOrder = "asc" };
+        var result = await _service.GetPagedAsync(request);
+
+        result.Items.Select(i => i.Id).Should().Equal(2, 1);
+    }
+
+    [Fact]
     public async Task GetPagedAsync_WithUsernameFilter_ShouldReturnMatchingRecords()
     {
         var auditLogs = new List<AuditLog>
