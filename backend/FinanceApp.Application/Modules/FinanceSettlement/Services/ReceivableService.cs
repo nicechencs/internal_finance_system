@@ -150,42 +150,7 @@ public class ReceivableService : ServiceBase, IReceivableService
         // 应用权限过滤
         var query = ApplyPermissionFilter(baseQuery);
 
-        // 日期范围筛选（到期日期）
-        if (request.StartDate.HasValue)
-        {
-            query = query.Where(r => r.DueDate >= request.StartDate.Value);
-        }
-
-        if (request.EndDate.HasValue)
-        {
-            var endOfDay = request.EndDate.Value.Date.AddDays(1);
-            query = query.Where(r => r.DueDate < endOfDay);
-        }
-
-        // 项目筛选
-        if (request.ProjectId.HasValue)
-        {
-            query = query.Where(r => r.ProjectId == request.ProjectId.Value);
-        }
-
-        // 客户筛选
-        if (request.CustomerId.HasValue)
-        {
-            query = query.Where(r => r.CustomerId == request.CustomerId.Value);
-        }
-
-        // 状态筛选
-        if (!string.IsNullOrEmpty(request.Status) && Enum.TryParse<ReceivableStatus>(request.Status, true, out var status))
-        {
-            query = query.Where(r => r.Status == status);
-        }
-
-        // 标签筛选
-        if (request.TagFilters != null && request.TagFilters.Count > 0)
-        {
-            var tagBindings = _tagBindingRepository.GetQueryable();
-            query = query.ApplyOwnerTagFilters(tagBindings, request.TagFilters, TagScope.Receivable);
-        }
+        query = ApplyListFilters(query, request);
 
         query = query.OrderByDescending(r => r.CreatedAt);
 
@@ -207,7 +172,8 @@ public class ReceivableService : ServiceBase, IReceivableService
             .ToListAsync();
 
         var receivableDtos = _mapper.Map<List<ReceivableDto>>(items);
-        await _tagBindingRepository.GetQueryable().ApplyTagsAsync(
+        await SettlementQueryHelper.ApplyTagsAsync(
+            _tagBindingRepository.GetQueryable(),
             TagScope.Receivable,
             receivableDtos,
             dto => dto.Id,
@@ -242,7 +208,8 @@ public class ReceivableService : ServiceBase, IReceivableService
         EnsureCanAccess(receivable);
 
         var receivableDto = _mapper.Map<ReceivableDto>(receivable);
-        await _tagBindingRepository.GetQueryable().ApplyTagAsync(
+        await SettlementQueryHelper.ApplyTagAsync(
+            _tagBindingRepository.GetQueryable(),
             TagScope.Receivable,
             receivableDto,
             dto => dto.Id,
@@ -521,15 +488,16 @@ public class ReceivableService : ServiceBase, IReceivableService
         receivable.ReceivedAmount += request.Amount;
         receivable.RemainingAmount -= request.Amount;
 
-        if (receivable.RemainingAmount == 0)
-        {
-            receivable.Status = ReceivableStatus.Settled;
-            receivable.SettledAt = DateTime.UtcNow;
-        }
-        else if (receivable.ReceivedAmount > 0)
-        {
-            receivable.Status = ReceivableStatus.Partial;
-        }
+        var paymentStatus = SettlementQueryHelper.ResolvePaymentStatus(
+            receivable.RemainingAmount,
+            receivable.ReceivedAmount,
+            receivable.Status,
+            receivable.SettledAt,
+            ReceivableStatus.Settled,
+            ReceivableStatus.Partial,
+            DateTime.UtcNow);
+        receivable.Status = paymentStatus.Status;
+        receivable.SettledAt = paymentStatus.SettledAt;
 
         _receivableRepository.Update(receivable);
 
@@ -612,8 +580,7 @@ public class ReceivableService : ServiceBase, IReceivableService
 
     public async Task<ReceivableTrendDto> GetTrendAsync(DateTime? startDate, DateTime? endDate)
     {
-        var end = (endDate ?? DateTime.UtcNow).Date;
-        var start = (startDate ?? end.AddMonths(-6).AddDays(1 - end.AddMonths(-6).Day)).Date;
+        var (start, end) = SettlementQueryHelper.ResolveTrendRange(startDate, endDate, DateTime.UtcNow);
 
         _logger.LogDebug("查询应收款趋势, Start={Start}, End={End}", start, end);
 
@@ -624,26 +591,14 @@ public class ReceivableService : ServiceBase, IReceivableService
             .Select(r => new { r.CreatedAt, r.TotalAmount })
             .ToListAsync();
 
-        var grouped = data
-            .GroupBy(r => new { r.CreatedAt.Year, r.CreatedAt.Month })
-            .ToDictionary(g => $"{g.Key.Year}-{g.Key.Month:D2}", g => g.Sum(r => r.TotalAmount));
+        var trend = SettlementQueryHelper.BuildMonthlyTrend(
+            data.Select(r => (r.CreatedAt, r.TotalAmount)),
+            start,
+            end);
 
-        var months = new List<string>();
-        var amounts = new List<decimal>();
+        _logger.LogInformation("查询应收款趋势成功, 月份数={Count}", trend.Months.Count);
 
-        var current = new DateTime(start.Year, start.Month, 1);
-        var endMonth = new DateTime(end.Year, end.Month, 1);
-        while (current <= endMonth)
-        {
-            var key = $"{current.Year}-{current.Month:D2}";
-            months.Add(key);
-            amounts.Add(grouped.TryGetValue(key, out var amt) ? amt : 0m);
-            current = current.AddMonths(1);
-        }
-
-        _logger.LogInformation("查询应收款趋势成功, 月份数={Count}", months.Count);
-
-        return new ReceivableTrendDto { Months = months, Amounts = amounts };
+        return new ReceivableTrendDto { Months = trend.Months, Amounts = trend.Amounts };
     }
 
     public async Task<ReceivableAgingDto> GetAgingAsync()
@@ -658,20 +613,17 @@ public class ReceivableService : ServiceBase, IReceivableService
             .ToListAsync();
 
         var today = DateTime.UtcNow.Date;
-
-        var notDue     = unsettled.Where(r => r.DueDate!.Value.Date >= today).Sum(r => r.RemainingAmount);
-        var days1_30   = unsettled.Where(r => r.DueDate!.Value.Date < today && r.DueDate.Value.Date >= today.AddDays(-30)).Sum(r => r.RemainingAmount);
-        var days31_60  = unsettled.Where(r => r.DueDate!.Value.Date < today.AddDays(-30) && r.DueDate.Value.Date >= today.AddDays(-60)).Sum(r => r.RemainingAmount);
-        var days61_90  = unsettled.Where(r => r.DueDate!.Value.Date < today.AddDays(-60) && r.DueDate.Value.Date >= today.AddDays(-90)).Sum(r => r.RemainingAmount);
-        var days90plus = unsettled.Where(r => r.DueDate!.Value.Date < today.AddDays(-90)).Sum(r => r.RemainingAmount);
+        var amounts = SettlementQueryHelper.BucketAgingAmounts(
+            unsettled.Select(r => (r.DueDate!.Value, r.RemainingAmount)),
+            today);
 
         _logger.LogInformation("查询应收款账龄成功, 未到期={NotDue}, 1-30天={D1_30}, 31-60天={D31_60}, 61-90天={D61_90}, 90天以上={D90Plus}",
-            notDue, days1_30, days31_60, days61_90, days90plus);
+            amounts[0], amounts[1], amounts[2], amounts[3], amounts[4]);
 
         return new ReceivableAgingDto
         {
-            Categories = ["未到期", "1-30天", "31-60天", "61-90天", "90天以上"],
-            Amounts = [notDue, days1_30, days31_60, days61_90, days90plus]
+            Categories = SettlementQueryHelper.AgingCategories.ToList(),
+            Amounts = amounts.ToList()
         };
     }
 
@@ -686,6 +638,19 @@ public class ReceivableService : ServiceBase, IReceivableService
 
     public Task<List<ReceivableDto>> GetByPersonIdAsync(long personId)
         => GetByFilterAsync(r => r.PersonId == personId, nameof(GetByPersonIdAsync), "PersonId", personId);
+
+    private IQueryable<Receivable> ApplyListFilters(IQueryable<Receivable> query, PageRequest request)
+    {
+        query = SettlementQueryHelper.ApplyDueDateRange(query, request.StartDate, request.EndDate, r => r.DueDate);
+        query = SettlementQueryHelper.ApplyOptionalIdEquals(query, request.ProjectId, r => (long?)r.ProjectId);
+        query = SettlementQueryHelper.ApplyOptionalIdEquals(query, request.CustomerId, r => r.CustomerId);
+        query = SettlementQueryHelper.ApplyStatusFilter(query, request.Status, r => r.Status);
+        return SettlementQueryHelper.ApplyTagFilter(
+            query,
+            _tagBindingRepository.GetQueryable(),
+            request.TagFilters,
+            TagScope.Receivable);
+    }
 
     private async Task<List<ReceivableDto>> GetByFilterAsync(
         Expression<Func<Receivable, bool>> predicate,
@@ -706,7 +671,8 @@ public class ReceivableService : ServiceBase, IReceivableService
             .ToListAsync();
 
         var result = _mapper.Map<List<ReceivableDto>>(receivables);
-        await _tagBindingRepository.GetQueryable().ApplyTagsAsync(
+        await SettlementQueryHelper.ApplyTagsAsync(
+            _tagBindingRepository.GetQueryable(),
             TagScope.Receivable,
             result,
             dto => dto.Id,
@@ -720,41 +686,7 @@ public class ReceivableService : ServiceBase, IReceivableService
     {
         _logger.LogDebug("ReceivableService.GetStatisticsAsync");
 
-        var query = ApplyPermissionFilter(_receivableRepository.GetQueryable());
-
-        // 日期范围筛选
-        if (request.StartDate.HasValue)
-            query = query.Where(r => r.DueDate >= request.StartDate.Value);
-        if (request.EndDate.HasValue)
-        {
-            var endOfDay = request.EndDate.Value.Date.AddDays(1);
-            query = query.Where(r => r.DueDate < endOfDay);
-        }
-
-        // 项目筛选
-        if (request.ProjectId.HasValue)
-        {
-            query = query.Where(r => r.ProjectId == request.ProjectId.Value);
-        }
-
-        // 客户筛选
-        if (request.CustomerId.HasValue)
-        {
-            query = query.Where(r => r.CustomerId == request.CustomerId.Value);
-        }
-
-        // 状态筛选
-        if (!string.IsNullOrEmpty(request.Status) && Enum.TryParse<ReceivableStatus>(request.Status, true, out var status))
-        {
-            query = query.Where(r => r.Status == status);
-        }
-
-        // 标签筛选
-        if (request.TagFilters != null && request.TagFilters.Count > 0)
-        {
-            var tagBindings = _tagBindingRepository.GetQueryable();
-            query = query.ApplyOwnerTagFilters(tagBindings, request.TagFilters, TagScope.Receivable);
-        }
+        var query = ApplyListFilters(ApplyPermissionFilter(_receivableRepository.GetQueryable()), request);
 
         var today = DateTime.UtcNow.Date;
         var result = await query
