@@ -8,7 +8,9 @@ import type {
   SetBindingsRequest,
   BatchSetBindingsRequest,
   TagSummaryDto,
-  TagCrossAnalysisDto
+  TagCrossAnalysisDto,
+  TagDailySummaryDto,
+  TagDailySummaryRebuildResult
 } from '../types/tag'
 
 // 标签 CRUD
@@ -64,4 +66,18 @@ export const getTagCrossAnalysis = (
     url: '/tags/analytics/cross',
     method: 'get',
     params: { rowScope, colScope, ...params }
+  })
+
+export const getTagDailySummaries = (params: { from: string; to: string; tagId?: number }) =>
+  request<ApiResponse<TagDailySummaryDto[]>>({
+    url: '/tags/daily-summaries',
+    method: 'get',
+    params
+  })
+
+export const rebuildTagDailySummaries = (date: string) =>
+  request<ApiResponse<TagDailySummaryRebuildResult>>({
+    url: '/tags/daily-summaries/rebuild',
+    method: 'post',
+    params: { date }
   })

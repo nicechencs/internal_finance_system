@@ -15,6 +15,7 @@ public class TagAnalyticsServiceTests : TestBase
     private readonly Mock<IRepository<Tag>> _tagRepositoryMock;
     private readonly Mock<IRepository<TagBinding>> _tagBindingRepositoryMock;
     private readonly Mock<IRepository<Transaction>> _transactionRepositoryMock;
+    private readonly Mock<IRepository<TagDailySummary>> _tagDailySummaryRepositoryMock;
     private readonly Mock<ILogger<TagAnalyticsService>> _loggerMock;
     private readonly Mock<ICurrentUserService> _currentUserServiceMock;
     private readonly Mock<IDataPermissionService> _permissionServiceMock;
@@ -25,6 +26,7 @@ public class TagAnalyticsServiceTests : TestBase
         _tagRepositoryMock = new Mock<IRepository<Tag>>();
         _tagBindingRepositoryMock = new Mock<IRepository<TagBinding>>();
         _transactionRepositoryMock = new Mock<IRepository<Transaction>>();
+        _tagDailySummaryRepositoryMock = new Mock<IRepository<TagDailySummary>>();
         _loggerMock = new Mock<ILogger<TagAnalyticsService>>();
         _currentUserServiceMock = new Mock<ICurrentUserService>();
         _permissionServiceMock = new Mock<IDataPermissionService>();
@@ -42,10 +44,15 @@ public class TagAnalyticsServiceTests : TestBase
             .Setup(x => x.ApplyPermissionFilter(It.IsAny<IQueryable<Transaction>>()))
             .Returns((IQueryable<Transaction> query) => query);
 
+        UnitOfWorkMock.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ITransactionScope?)null);
+
         _service = new TagAnalyticsService(
             _tagRepositoryMock.Object,
             _tagBindingRepositoryMock.Object,
             _transactionRepositoryMock.Object,
+            _tagDailySummaryRepositoryMock.Object,
+            UnitOfWorkMock.Object,
             _loggerMock.Object,
             _currentUserServiceMock.Object,
             _permissionServiceMock.Object);
@@ -535,5 +542,149 @@ public class TagAnalyticsServiceTests : TestBase
         result.RowTags[0].TransactionCount.Should().Be(2);
         result.ColTags.Should().ContainSingle();
         result.ColTags[0].TransactionCount.Should().Be(2);
+    }
+
+    // ─────────────────── 每日汇总快照 ───────────────────
+
+    [Fact(DisplayName = "RebuildDailySummariesAsync - 按标签和作用域汇总收入支出净额和笔数")]
+    public async Task RebuildDailySummariesAsync_AggregatesIncomeExpenseNetAndCount()
+    {
+        var day = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+        var stored = new List<TagDailySummary>();
+
+        _tagDailySummaryRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(() => stored.AsQueryable().BuildMock().Object);
+        _tagDailySummaryRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<TagDailySummary>()))
+            .Callback<TagDailySummary>(row =>
+            {
+                row.Id = stored.Count + 1;
+                stored.Add(row);
+            })
+            .ReturnsAsync((TagDailySummary row) => row);
+        _tagDailySummaryRepositoryMock
+            .Setup(r => r.Delete(It.IsAny<TagDailySummary>()))
+            .Callback<TagDailySummary>(row => row.IsDeleted = true);
+
+        _transactionRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Transaction>
+            {
+                new() { Id = 1, TransactionType = TransactionType.Income, Amount = 100m, TransactionDate = day.AddHours(9), ProjectId = 10, CustomerId = 20 },
+                new() { Id = 2, TransactionType = TransactionType.Expense, Amount = 40m, TransactionDate = day.AddHours(15), ProjectId = 10 },
+                new() { Id = 3, TransactionType = TransactionType.Income, Amount = 999m, TransactionDate = day.AddDays(1), ProjectId = 10 },
+                new() { Id = 4, TransactionType = TransactionType.Transfer, Amount = 50m, TransactionDate = day.AddHours(11), ProjectId = 10 }
+            }.AsQueryable().BuildMock().Object);
+
+        _tagBindingRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<TagBinding>
+            {
+                new() { Id = 1, TagId = 1, OwnerType = TagScope.Transaction, OwnerId = 1 },
+                new() { Id = 2, TagId = 1, OwnerType = TagScope.Transaction, OwnerId = 2 },
+                new() { Id = 3, TagId = 1, OwnerType = TagScope.Transaction, OwnerId = 1 },
+                new() { Id = 4, TagId = 2, OwnerType = TagScope.Project, OwnerId = 10 },
+                new() { Id = 5, TagId = 3, OwnerType = TagScope.Customer, OwnerId = 20 },
+                new() { Id = 6, TagId = 9, OwnerType = TagScope.Receivable, OwnerId = 1 }
+            }.AsQueryable().BuildMock().Object);
+
+        var result = await _service.RebuildDailySummariesAsync(day);
+
+        result.RowCount.Should().Be(3);
+        result.Version.Should().Be(1);
+
+        var transactionRow = stored.Single(s => s.TagId == 1 && s.MetricScope == "transaction");
+        transactionRow.IncomeAmount.Should().Be(100m);
+        transactionRow.ExpenseAmount.Should().Be(40m);
+        transactionRow.NetAmount.Should().Be(60m);
+        transactionRow.TransactionCount.Should().Be(2);
+        transactionRow.SummaryDate.Should().Be(day);
+
+        var projectRow = stored.Single(s => s.TagId == 2 && s.MetricScope == "project");
+        projectRow.IncomeAmount.Should().Be(100m);
+        projectRow.ExpenseAmount.Should().Be(40m);
+        projectRow.NetAmount.Should().Be(60m);
+        projectRow.TransactionCount.Should().Be(2);
+
+        var customerRow = stored.Single(s => s.TagId == 3 && s.MetricScope == "customer");
+        customerRow.IncomeAmount.Should().Be(100m);
+        customerRow.ExpenseAmount.Should().Be(0m);
+        customerRow.TransactionCount.Should().Be(1);
+
+        stored.Should().NotContain(s => s.TagId == 9);
+    }
+
+    [Fact(DisplayName = "RebuildDailySummariesAsync - 重复重建软删旧行并递增版本")]
+    public async Task RebuildDailySummariesAsync_IsIdempotentAndIncrementsVersion()
+    {
+        var day = new DateTime(2026, 4, 2, 0, 0, 0, DateTimeKind.Utc);
+        var stored = new List<TagDailySummary>
+        {
+            new()
+            {
+                Id = 8,
+                SummaryDate = day,
+                TagId = 1,
+                MetricScope = "transaction",
+                IncomeAmount = 1m,
+                ExpenseAmount = 0m,
+                NetAmount = 1m,
+                TransactionCount = 1,
+                Version = 3
+            }
+        };
+
+        _tagDailySummaryRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(() => stored.AsQueryable().BuildMock().Object);
+        _tagDailySummaryRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<TagDailySummary>()))
+            .Callback<TagDailySummary>(row =>
+            {
+                row.Id = stored.Max(s => s.Id) + 1;
+                stored.Add(row);
+            })
+            .ReturnsAsync((TagDailySummary row) => row);
+        _tagDailySummaryRepositoryMock
+            .Setup(r => r.Delete(It.IsAny<TagDailySummary>()))
+            .Callback<TagDailySummary>(row => row.IsDeleted = true);
+
+        _transactionRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<Transaction>
+            {
+                new() { Id = 11, TransactionType = TransactionType.Expense, Amount = 25m, TransactionDate = day.AddHours(8) }
+            }.AsQueryable().BuildMock().Object);
+        _tagBindingRepositoryMock.Setup(r => r.GetQueryable())
+            .Returns(new List<TagBinding>
+            {
+                new() { Id = 1, TagId = 7, OwnerType = TagScope.Transaction, OwnerId = 11 }
+            }.AsQueryable().BuildMock().Object);
+
+        var result = await _service.RebuildDailySummariesAsync(day.AddHours(12));
+
+        result.Version.Should().Be(4);
+        result.RowCount.Should().Be(1);
+        stored.Single(s => s.Id == 8).IsDeleted.Should().BeTrue();
+
+        var fresh = stored.Single(s => !s.IsDeleted);
+        fresh.TagId.Should().Be(7);
+        fresh.ExpenseAmount.Should().Be(25m);
+        fresh.IncomeAmount.Should().Be(0m);
+        fresh.NetAmount.Should().Be(-25m);
+        fresh.TransactionCount.Should().Be(1);
+        fresh.Version.Should().Be(4);
+        fresh.SummaryDate.Should().Be(day);
+
+        // 内存查询桩不会套全局软删除过滤器，这里模拟过滤器后再查。
+        stored.RemoveAll(s => s.IsDeleted);
+        var queried = await _service.GetDailySummariesAsync(day, day);
+        queried.Should().ContainSingle();
+        queried[0].TagId.Should().Be(7);
+        queried[0].ExpenseAmount.Should().Be(25m);
+        queried[0].Version.Should().Be(4);
+    }
+
+    [Fact(DisplayName = "GetDailySummariesAsync - 结束日期早于开始日期应校验失败")]
+    public async Task GetDailySummariesAsync_EndBeforeStart_Throws()
+    {
+        var act = () => _service.GetDailySummariesAsync(new DateTime(2026, 4, 3), new DateTime(2026, 4, 2));
+        await act.Should().ThrowAsync<ValidationException>();
     }
 }

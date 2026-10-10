@@ -165,4 +165,30 @@ public class TagsController : BaseApiController
         var result = await _tagAnalyticsService.GetTagCrossAnalysisAsync(rowScope, colScope, dateFrom, dateTo);
         return Ok(ApiResponse<TagCrossAnalysisDto>.SuccessResponse(result));
     }
+
+    // ─── 标签每日汇总快照 ────────────────────────────────────────────
+
+    [HttpGet("daily-summaries")]
+    [Authorize(Roles = "Admin,Accountant,Viewer")]
+    public async Task<ActionResult<ApiResponse<List<TagDailySummaryDto>>>> GetDailySummaries(
+        [FromQuery] DateTime from,
+        [FromQuery] DateTime to,
+        [FromQuery] long? tagId = null)
+    {
+        _logger.LogInformation("[TagsController.GetDailySummaries] from={From}, to={To}, tagId={TagId}", from, to, tagId);
+
+        var result = await _tagAnalyticsService.GetDailySummariesAsync(from, to, tagId);
+        return Ok(ApiResponse<List<TagDailySummaryDto>>.SuccessResponse(result));
+    }
+
+    [HttpPost("daily-summaries/rebuild")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<ApiResponse<TagDailySummaryRebuildResult>>> RebuildDailySummaries(
+        [FromQuery] DateTime date)
+    {
+        _logger.LogInformation("[TagsController.RebuildDailySummaries] date={Date}", date);
+
+        var result = await _tagAnalyticsService.RebuildDailySummariesAsync(date);
+        return Ok(ApiResponse<TagDailySummaryRebuildResult>.SuccessResponse(result, "标签每日汇总已重建"));
+    }
 }
